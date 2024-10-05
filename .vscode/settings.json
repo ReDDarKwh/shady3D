@@ -1,0 +1,6 @@
+{
+    "cmake.configureArgs": [
+        "-DWEBGPU_BACKEND=WGPU"
+    ],
+    "cmake.buildDirectory": "${workspaceFolder}/build-wgpu"
+}
