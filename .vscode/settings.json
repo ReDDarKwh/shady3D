@@ -3,8 +3,4 @@
         "-DWEBGPU_BACKEND=WGPU"
     ],
     "cmake.buildDirectory": "${workspaceFolder}/build-wgpu",
-    "C_Cpp.errorSquiggles": "enabled",
-    "files.associations": {
-        "*.wgsl": "cpp"
-    }
 }
