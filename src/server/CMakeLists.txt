@@ -5,3 +5,6 @@ project(
 	LANGUAGES CXX C
 )
 
+add_executable(shadyServer
+	main.cpp
+)
