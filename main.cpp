@@ -6,7 +6,7 @@
 #include <glfw3webgpu.h>
 
 #ifdef __EMSCRIPTEN__
-#  include <emscripten.h>
+#include <emscripten.h>
 #endif // __EMSCRIPTEN__
 
 #include <iostream>
@@ -16,7 +16,12 @@
 // Avoid the "wgpu::" prefix in front of all WebGPU symbols
 using namespace wgpu;
 
-class Application {
+const char *shaderSource = 
+#include "shaders/main.wgsl"
+;
+
+class Application
+{
 public:
 	// Initialize everything and return true if it went all right
 	bool Initialize();
@@ -33,6 +38,8 @@ public:
 private:
 	TextureView GetNextSurfaceTextureView();
 
+	void InitializePipeline();
+
 private:
 	// We put here all the variables that are shared between init and main loop
 	GLFWwindow *window;
@@ -40,24 +47,30 @@ private:
 	Queue queue;
 	Surface surface;
 	std::unique_ptr<ErrorCallback> uncapturedErrorCallbackHandle;
+	TextureFormat surfaceFormat = TextureFormat::Undefined;
+	RenderPipeline pipeline;
 };
 
-int main() {
+int main()
+{
 	Application app;
 
-	if (!app.Initialize()) {
+	if (!app.Initialize())
+	{
 		return 1;
 	}
 
 #ifdef __EMSCRIPTEN__
 	// Equivalent of the main loop when using Emscripten:
-	auto callback = [](void *arg) {
-		Application* pApp = reinterpret_cast<Application*>(arg);
+	auto callback = [](void *arg)
+	{
+		Application *pApp = reinterpret_cast<Application *>(arg);
 		pApp->MainLoop(); // 4. We can use the application object
 	};
 	emscripten_set_main_loop_arg(callback, &app, 0, true);
-#else // __EMSCRIPTEN__
-	while (app.IsRunning()) {
+#else  // __EMSCRIPTEN__
+	while (app.IsRunning())
+	{
 		app.MainLoop();
 	}
 #endif // __EMSCRIPTEN__
@@ -67,26 +80,30 @@ int main() {
 	return 0;
 }
 
-bool Application::Initialize() {
+bool Application::Initialize()
+{
+
+	auto width = 640 * 2;
+	auto height = width / 2;
 	// Open window
 	glfwInit();
 	glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
 	glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
-	window = glfwCreateWindow(640, 480, "Learn WebGPU", nullptr, nullptr);
-	
+	window = glfwCreateWindow(width, height, "Learn WebGPU", nullptr, nullptr);
+
 	Instance instance = wgpuCreateInstance(nullptr);
-	
+
 	surface = glfwGetWGPUSurface(instance, window);
-	
+
 	std::cout << "Requesting adapter..." << std::endl;
 	surface = glfwGetWGPUSurface(instance, window);
 	RequestAdapterOptions adapterOpts = {};
 	adapterOpts.compatibleSurface = surface;
 	Adapter adapter = instance.requestAdapter(adapterOpts);
 	std::cout << "Got adapter: " << adapter << std::endl;
-	
+
 	instance.release();
-	
+
 	std::cout << "Requesting device..." << std::endl;
 	DeviceDescriptor deviceDesc = {};
 	deviceDesc.label = "My Device";
@@ -94,30 +111,32 @@ bool Application::Initialize() {
 	deviceDesc.requiredLimits = nullptr;
 	deviceDesc.defaultQueue.nextInChain = nullptr;
 	deviceDesc.defaultQueue.label = "The default queue";
-	deviceDesc.deviceLostCallback = [](WGPUDeviceLostReason reason, char const* message, void* /* pUserData */) {
+	deviceDesc.deviceLostCallback = [](WGPUDeviceLostReason reason, char const *message, void * /* pUserData */)
+	{
 		std::cout << "Device lost: reason " << reason;
-		if (message) std::cout << " (" << message << ")";
+		if (message)
+			std::cout << " (" << message << ")";
 		std::cout << std::endl;
 	};
 	device = adapter.requestDevice(deviceDesc);
 	std::cout << "Got device: " << device << std::endl;
-	
-	uncapturedErrorCallbackHandle = device.setUncapturedErrorCallback([](ErrorType type, char const* message) {
+
+	uncapturedErrorCallbackHandle = device.setUncapturedErrorCallback([](ErrorType type, char const *message)
+																	  {
 		std::cout << "Uncaptured device error: type " << type;
 		if (message) std::cout << " (" << message << ")";
-		std::cout << std::endl;
-	});
-	
+		std::cout << std::endl; });
+
 	queue = device.getQueue();
 
 	// Configure the surface
 	SurfaceConfiguration config = {};
-	
+
 	// Configuration of the textures created for the underlying swap chain
-	config.width = 640;
-	config.height = 480;
+	config.width = width;
+	config.height = height;
 	config.usage = TextureUsage::RenderAttachment;
-	TextureFormat surfaceFormat = surface.getPreferredFormat(adapter);
+	surfaceFormat = surface.getPreferredFormat(adapter);
 	config.format = surfaceFormat;
 
 	// And we do not need any particular view format:
@@ -131,11 +150,15 @@ bool Application::Initialize() {
 
 	// Release the adapter only after it has been fully utilized
 	adapter.release();
-	
+
+	InitializePipeline();
+
 	return true;
 }
 
-void Application::Terminate() {
+void Application::Terminate()
+{
+	pipeline.release();
 	surface.unconfigure();
 	queue.release();
 	surface.release();
@@ -144,12 +167,14 @@ void Application::Terminate() {
 	glfwTerminate();
 }
 
-void Application::MainLoop() {
+void Application::MainLoop()
+{
 	glfwPollEvents();
 
 	// Get the next target texture view
 	TextureView targetView = GetNextSurfaceTextureView();
-	if (!targetView) return;
+	if (!targetView)
+		return;
 
 	// Create a command encoder for the draw call
 	CommandEncoderDescriptor encoderDesc = {};
@@ -165,7 +190,7 @@ void Application::MainLoop() {
 	renderPassColorAttachment.resolveTarget = nullptr;
 	renderPassColorAttachment.loadOp = LoadOp::Clear;
 	renderPassColorAttachment.storeOp = StoreOp::Store;
-	renderPassColorAttachment.clearValue = WGPUColor{ 0.4, 0.1, 0.2, 1.0 };
+	renderPassColorAttachment.clearValue = WGPUColor{0.4, 0.1, 0.2, 1.0};
 #ifndef WEBGPU_BACKEND_WGPU
 	renderPassColorAttachment.depthSlice = WGPU_DEPTH_SLICE_UNDEFINED;
 #endif // NOT WEBGPU_BACKEND_WGPU
@@ -177,6 +202,12 @@ void Application::MainLoop() {
 
 	// Create the render pass and end it immediately (we only clear the screen but do not draw anything)
 	RenderPassEncoder renderPass = encoder.beginRenderPass(renderPassDesc);
+
+	// Select which render pipeline to use
+	renderPass.setPipeline(pipeline);
+	// Draw 1 instance of a 3-vertices shape
+	renderPass.draw(3, 1, 0, 0);
+	
 	renderPass.end();
 	renderPass.release();
 
@@ -202,15 +233,18 @@ void Application::MainLoop() {
 #endif
 }
 
-bool Application::IsRunning() {
+bool Application::IsRunning()
+{
 	return !glfwWindowShouldClose(window);
 }
 
-TextureView Application::GetNextSurfaceTextureView() {
+TextureView Application::GetNextSurfaceTextureView()
+{
 	// Get the surface texture
 	SurfaceTexture surfaceTexture;
 	surface.getCurrentTexture(&surfaceTexture);
-	if (surfaceTexture.status != SurfaceGetCurrentTextureStatus::Success) {
+	if (surfaceTexture.status != SurfaceGetCurrentTextureStatus::Success)
+	{
 		return nullptr;
 	}
 	Texture texture = surfaceTexture.texture;
@@ -228,4 +262,77 @@ TextureView Application::GetNextSurfaceTextureView() {
 	TextureView targetView = texture.createView(viewDescriptor);
 
 	return targetView;
+}
+
+void Application::InitializePipeline()
+{
+
+
+	ShaderModuleDescriptor shaderDesc;
+
+#ifdef WEBGPU_BACKEND_WGPU
+	shaderDesc.hintCount = 0;
+	shaderDesc.hints = nullptr;
+#endif
+
+	// We use the extension mechanism to specify the WGSL part of the shader module descriptor
+	ShaderModuleWGSLDescriptor shaderCodeDesc;
+	// Set the chained struct's header
+	shaderCodeDesc.chain.next = nullptr;
+	shaderCodeDesc.chain.sType = SType::ShaderModuleWGSLDescriptor;
+	// Connect the chain
+	shaderDesc.nextInChain = &shaderCodeDesc.chain;
+	shaderCodeDesc.code = shaderSource;
+	ShaderModule shaderModule = device.createShaderModule(shaderDesc);
+	
+	RenderPipelineDescriptor pipelineDesc;
+	pipelineDesc.vertex.bufferCount = 0;
+	pipelineDesc.vertex.buffers = nullptr;
+	pipelineDesc.vertex.module = shaderModule;
+	pipelineDesc.vertex.entryPoint = "vs_main";
+	pipelineDesc.vertex.constantCount = 0;
+	pipelineDesc.vertex.constants = nullptr;
+
+	pipelineDesc.primitive.topology = PrimitiveTopology::TriangleList;
+	pipelineDesc.primitive.stripIndexFormat = IndexFormat::Undefined;
+	pipelineDesc.primitive.frontFace = FrontFace::CW;
+	pipelineDesc.primitive.cullMode = CullMode::Back;
+
+	FragmentState fragmentState;
+	fragmentState.module = shaderModule;
+	fragmentState.entryPoint = "fs_main";
+	fragmentState.constantCount = 0;
+	fragmentState.constants = nullptr;
+
+	BlendState blendState;
+	blendState.color.srcFactor = BlendFactor::SrcAlpha;
+	blendState.color.dstFactor = BlendFactor::OneMinusSrcAlpha;
+	blendState.color.operation = BlendOperation::Add;
+	blendState.alpha.srcFactor = BlendFactor::Zero;
+	blendState.alpha.dstFactor = BlendFactor::One;
+	blendState.alpha.operation = BlendOperation::Add;
+
+	ColorTargetState colorTarget;
+	colorTarget.format = surfaceFormat;
+	colorTarget.blend = &blendState;
+	colorTarget.writeMask = ColorWriteMask::All; // We could write to only some of the color channels.
+
+	// We have only one target because our render pass has only one output color
+	// attachment.
+	fragmentState.targetCount = 1;
+	fragmentState.targets = &colorTarget;
+	pipelineDesc.fragment = &fragmentState;
+
+	pipelineDesc.depthStencil = nullptr;
+
+	pipelineDesc.multisample.count = 1;
+	pipelineDesc.multisample.mask = ~0u;
+
+	// Default value as well (irrelevant for count = 1 anyways)
+	pipelineDesc.multisample.alphaToCoverageEnabled = false;
+	pipelineDesc.layout = nullptr;
+
+	pipeline = device.createRenderPipeline(pipelineDesc);
+
+	shaderModule.release();
 }

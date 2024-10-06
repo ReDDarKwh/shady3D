@@ -23,6 +23,17 @@ target_link_libraries(App PRIVATE glfw webgpu glfw3webgpu)
 
 target_copy_webgpu_binaries(App)
 
+
+file(GLOB_RECURSE SHADER_FILES "${CMAKE_CURRENT_SOURCE_DIR}/shaders/*.wgsl")
+
+# foreach(SHADER_FILE ${SHADER_FILES})
+# 	string(REPLACE "${CMAKE_CURRENT_SOURCE_DIR}/shaders/" "" RELATIVE_PATH ${SHADER_FILE})
+# 	file(READ ${SHADER_FILE} content)
+# 	set(content "R\"(\n${content})\"")
+# 	file(WRITE "${CMAKE_CURRENT_SOURCE_DIR}/generated/${RELATIVE_PATH}" "${content}")
+# endforeach()
+
+
 set_target_properties(App PROPERTIES
 	CXX_STANDARD 17
 	CXX_STANDARD_REQUIRED ON
