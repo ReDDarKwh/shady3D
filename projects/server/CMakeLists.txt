@@ -8,3 +8,5 @@ project(
 add_executable(shadyServer
 	main.cpp
 )
+
+target_link_libraries(shadyServer PRIVATE asio)
