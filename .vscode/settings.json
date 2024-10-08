@@ -3,4 +3,7 @@
         "-DWEBGPU_BACKEND=WGPU"
     ],
     "cmake.buildDirectory": "${workspaceFolder}/build-wgpu",
+    "cmake.debugConfig": {
+        "args": ["8888"]
+    },
 }

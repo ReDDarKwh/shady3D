@@ -6,7 +6,7 @@ include(cmake/CPM.cmake)
 
 find_package(Threads REQUIRED)
 
-CPMAddPackage("gh:chriskohlhoff/asio#asio-1-18-1@1.18.1")
+CPMAddPackage("gh:chriskohlhoff/asio#asio-1-30-2@1.30.2")
 
 # ASIO doesn't use CMake, we have to configure it manually. Extra notes for using on Windows:
 #

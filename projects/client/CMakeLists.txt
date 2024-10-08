@@ -19,7 +19,7 @@ add_executable(shadyClient
 	main.cpp
 )
 
-target_link_libraries(shadyClient PRIVATE glfw webgpu glfw3webgpu)
+target_link_libraries(shadyClient PRIVATE glfw webgpu glfw3webgpu asio)
 
 target_copy_webgpu_binaries(shadyClient)
 
