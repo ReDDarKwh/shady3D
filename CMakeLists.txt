@@ -55,5 +55,3 @@ if(asio_ADDED)
 endif()
 
 add_subdirectory(projects/client)
-add_subdirectory(projects/server)
-

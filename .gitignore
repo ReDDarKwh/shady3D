@@ -12,3 +12,7 @@ compile_commands.json
 CTestTestfile.cmake
 _deps
 CMakeUserPresets.json
+
+build/bin
+node_modules
+frontend/dist
