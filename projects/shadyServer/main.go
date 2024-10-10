@@ -27,6 +27,7 @@ func main() {
 		},
 		BackgroundColour: &options.RGBA{R: 27, G: 38, B: 54, A: 1},
 		OnStartup:        app.startup,
+		OnShutdown:       app.shutdown,
 		Bind: []interface{}{
 			app,
 		},
@@ -36,39 +37,21 @@ func main() {
 		println("Error:", err.Error())
 	}
 
-	// ln, err := net.Listen("tcp", ":8080")
-	// if err != nil {
-	// 	fmt.Println(err)
-	// 	return
-	// }
-
-	// // Accept incoming connections and handle them
-	// for {
-	// 	conn, err := ln.Accept()
-	// 	if err != nil {
-	// 		fmt.Println(err)
-	// 		continue
-	// 	}
-
-	// 	// Handle the connection in a new goroutine
-	// 	go handleConnection(conn)
-	// }
 }
 
 func handleConnection(conn net.Conn) {
 	// Close the connection when we're done
-	defer conn.Close()
+	for {
 
-	// Read incoming data
-	buf := make([]byte, 1024)
-	_, err := conn.Read(buf)
-	if err != nil {
-		fmt.Println(err)
-		return
+		buf := make([]byte, 1024)
+		_, err := conn.Read(buf)
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+
+		fmt.Printf("Received: %s", buf)
 	}
-
-	// Print the incoming data
-	fmt.Printf("Received: %s", buf)
 }
 
 // package main
