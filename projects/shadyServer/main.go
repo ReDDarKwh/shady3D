@@ -2,8 +2,6 @@ package main
 
 import (
 	"embed"
-	"fmt"
-	"net"
 
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/options"
@@ -37,21 +35,6 @@ func main() {
 		println("Error:", err.Error())
 	}
 
-}
-
-func handleConnection(conn net.Conn) {
-	// Close the connection when we're done
-	for {
-
-		buf := make([]byte, 1024)
-		_, err := conn.Read(buf)
-		if err != nil {
-			fmt.Println(err)
-			return
-		}
-
-		fmt.Printf("Received: %s", buf)
-	}
 }
 
 // package main

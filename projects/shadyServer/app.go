@@ -30,17 +30,24 @@ func (a *App) startup(ctx context.Context) {
 		return
 	}
 
+	var conn net.Conn
 	// Accept incoming connections and handle them
+	go func() {
+		for {
 
-	conn, err := ln.Accept()
-	if err != nil {
-		fmt.Println(err)
-	}
+			newConn, err := ln.Accept()
 
-	defer conn.Close()
+			if conn != nil {
+				conn.Close()
+			}
 
-	// Handle the connection in a new goroutine
-	go handleConnection(conn)
+			conn = newConn
+
+			if err != nil {
+				fmt.Println(err)
+			}
+		}
+	}()
 
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
@@ -64,6 +71,7 @@ func (a *App) startup(ctx context.Context) {
 			fmt.Println("event:", event)
 			if event.Has(fsnotify.Write) {
 				fmt.Println("modified file:", event.Name)
+				conn.Write([]byte(event.Name + "\n"))
 			}
 		case err, ok := <-watcher.Errors:
 			if !ok {

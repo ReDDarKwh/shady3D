@@ -16,17 +16,22 @@
 #include <cstdlib>
 #include <cstring>
 #include "asio.hpp"
+#include <thread>
+#include <atomic>
 
 using asio::ip::tcp;
 
-enum { max_length = 1024 };
+enum
+{
+	max_length = 1024
+};
 
 // Avoid the "wgpu::" prefix in front of all WebGPU symbols
 using namespace wgpu;
 
-const char *shaderSource = 
+const char *shaderSource =
 #include "shaders/main.wgsl"
-;
+	;
 
 class Application
 {
@@ -59,60 +64,98 @@ private:
 	RenderPipeline pipeline;
 };
 
+
+class Client {
+public:
+    Client(asio::io_context& io_context, const std::string& host, const std::string& port)
+        : socket_(io_context), resolver_(io_context), strand_(io_context), running_(true) {
+        connect(host, port);
+    }
+
+    ~Client() {
+        running_ = false;
+        if (socket_.is_open()) {
+            socket_.close();
+        }
+    }
+
+private:
+    void connect(const std::string& host, const std::string& port) {
+        auto endpoints = resolver_.resolve(host, port);
+        asio::async_connect(socket_, endpoints,
+            [this](std::error_code ec, asio::ip::tcp::endpoint) {
+                if (!ec) {
+                    std::cout << "Connected successfully!\n";
+                    read_messages();
+                } else {
+                    std::cerr << "Connection failed: " << ec.message() << "\n";
+                }
+            });
+    }
+
+    void read_messages() {
+        asio::async_read_until(socket_, asio::dynamic_buffer(read_buffer_), '\n',
+            asio::bind_executor(strand_, [this](std::error_code ec, std::size_t bytes_transferred) {
+                if (!ec && running_) {
+                    std::string message(read_buffer_.substr(0, bytes_transferred - 1));
+                    std::cout << "Received: " << message << std::endl;
+                    read_buffer_.erase(0, bytes_transferred);
+                    read_messages(); // Continue reading
+                } else if (ec) {
+                    std::cerr << "Read error: " << ec.message() << "\n";
+                }
+            }));
+    }
+
+    asio::ip::tcp::socket socket_;
+    asio::ip::tcp::resolver resolver_;
+    asio::io_context::strand strand_;
+    std::string read_buffer_;
+    std::atomic<bool> running_;
+};
+
 int main()
 {
 
 	try
-  {
-
-    asio::io_context io_context;
-
-    tcp::socket s(io_context);
-    tcp::resolver resolver(io_context);
-    asio::connect(s, resolver.resolve("127.0.0.1", "8888"));
-
-    std::cout << "Enter message: ";
-    char request[max_length];
-    std::cin.getline(request, max_length);
-    size_t request_length = std::strlen(request);
-    asio::write(s, asio::buffer(request, request_length));
-
-    char reply[max_length];
-    size_t reply_length = asio::read(s,
-        asio::buffer(reply, request_length));
-    std::cout << "Reply is: ";
-    std::cout.write(reply, reply_length);
-    std::cout << "\n";
-  }
-  catch (std::exception& e)
-  {
-    std::cerr << "Exception: " << e.what() << "\n";
-  }
-
-
-	Application app;
-
-	if (!app.Initialize())
 	{
-		return 1;
-	}
+		asio::io_context io_context;
+
+		std::thread t([&io_context]()
+					  {
+            Client client(io_context, "127.0.0.1", "8080");
+            io_context.run(); });
+
+		Application app;
+
+		if (!app.Initialize())
+		{
+			return 1;
+		}
 
 #ifdef __EMSCRIPTEN__
-	// Equivalent of the main loop when using Emscripten:
-	auto callback = [](void *arg)
-	{
-		Application *pApp = reinterpret_cast<Application *>(arg);
-		pApp->MainLoop(); // 4. We can use the application object
-	};
-	emscripten_set_main_loop_arg(callback, &app, 0, true);
+		// Equivalent of the main loop when using Emscripten:
+		auto callback = [](void *arg)
+		{
+			Application *pApp = reinterpret_cast<Application *>(arg);
+			pApp->MainLoop(); // 4. We can use the application object
+		};
+		emscripten_set_main_loop_arg(callback, &app, 0, true);
 #else  // __EMSCRIPTEN__
-	while (app.IsRunning())
-	{
-		app.MainLoop();
-	}
+		while (app.IsRunning())
+		{
+			app.MainLoop();
+		}
 #endif // __EMSCRIPTEN__
 
-	app.Terminate();
+		app.Terminate();
+		io_context.stop();
+		t.join();
+	}
+	catch (std::exception &e)
+	{
+		std::cerr << "Exception: " << e.what() << "\n";
+	}
 
 	return 0;
 }
@@ -244,7 +287,7 @@ void Application::MainLoop()
 	renderPass.setPipeline(pipeline);
 	// Draw 1 instance of a 3-vertices shape
 	renderPass.draw(3, 1, 0, 0);
-	
+
 	renderPass.end();
 	renderPass.release();
 
@@ -304,7 +347,6 @@ TextureView Application::GetNextSurfaceTextureView()
 void Application::InitializePipeline()
 {
 
-
 	ShaderModuleDescriptor shaderDesc;
 
 #ifdef WEBGPU_BACKEND_WGPU
@@ -321,7 +363,7 @@ void Application::InitializePipeline()
 	shaderDesc.nextInChain = &shaderCodeDesc.chain;
 	shaderCodeDesc.code = shaderSource;
 	ShaderModule shaderModule = device.createShaderModule(shaderDesc);
-	
+
 	RenderPipelineDescriptor pipelineDesc;
 	pipelineDesc.vertex.bufferCount = 0;
 	pipelineDesc.vertex.buffers = nullptr;
