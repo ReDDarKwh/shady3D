@@ -121,10 +121,7 @@ int main()
 	{
 		asio::io_context io_context;
 
-		std::thread t([&io_context]()
-					  {
-            Client client(io_context, "127.0.0.1", "8080");
-            io_context.run(); });
+		Client client(io_context, "127.0.0.1", "43957");
 
 		Application app;
 
@@ -145,12 +142,13 @@ int main()
 		while (app.IsRunning())
 		{
 			app.MainLoop();
+			io_context.poll(); 
 		}
 #endif // __EMSCRIPTEN__
 
 		app.Terminate();
 		io_context.stop();
-		t.join();
+		
 	}
 	catch (std::exception &e)
 	{

@@ -24,7 +24,7 @@ func NewApp() *App {
 func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
 
-	ln, err := net.Listen("tcp", ":8080")
+	ln, err := net.Listen("tcp", ":43957")
 	if err != nil {
 		fmt.Println(err)
 		return
