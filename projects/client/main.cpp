@@ -69,8 +69,11 @@ private:
 class Application
 {
 public:
+	bool InitWGPU();
 	// Initialize everything and return true if it went all right
 	bool Initialize();
+
+	void TerminateWGPU();
 
 	// Uninitialize everything that was initialized
 	void Terminate();
@@ -84,6 +87,7 @@ public:
 	void InitializePipeline();
 
 	ShaderManager *shaderManager;
+	bool crashed;
 
 private:
 	TextureView GetNextSurfaceTextureView();
@@ -91,6 +95,7 @@ private:
 private:
 	GLFWwindow *window;
 	Device device;
+	Adapter adapter;
 	Queue queue;
 	Surface surface;
 	std::unique_ptr<ErrorCallback> uncapturedErrorCallbackHandle;
@@ -117,7 +122,13 @@ int main()
 		client.BindOnMessage([&app](auto str)
 							 {
 			app.shaderManager->UpdateShader(str);
-			app.InitializePipeline(); });
+
+			if(app.crashed) {
+				app.TerminateWGPU();
+				app.InitWGPU(); 
+			} else {
+				app.InitializePipeline();
+			} });
 
 #ifdef __EMSCRIPTEN__
 		// Equivalent of the main loop when using Emscripten:
@@ -146,56 +157,11 @@ int main()
 	return 0;
 }
 
-bool Application::Initialize()
+bool Application::InitWGPU()
 {
-
-	shaderManager = new ShaderManager("C:/Github/webgpucpp/projects/client/shaders");
 
 	auto width = 640 * 2;
 	auto height = width / 2;
-	// Open window
-	glfwInit();
-	glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-	glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
-	window = glfwCreateWindow(width, height, "Learn WebGPU", nullptr, nullptr);
-
-	Instance instance = wgpuCreateInstance(nullptr);
-
-	surface = glfwGetWGPUSurface(instance, window);
-
-	std::cout << "Requesting adapter..." << std::endl;
-	surface = glfwGetWGPUSurface(instance, window);
-	RequestAdapterOptions adapterOpts = {};
-	adapterOpts.compatibleSurface = surface;
-	Adapter adapter = instance.requestAdapter(adapterOpts);
-	std::cout << "Got adapter: " << adapter << std::endl;
-
-	instance.release();
-
-	std::cout << "Requesting device..." << std::endl;
-	DeviceDescriptor deviceDesc = {};
-	deviceDesc.label = "My Device";
-	deviceDesc.requiredFeatureCount = 0;
-	deviceDesc.requiredLimits = nullptr;
-	deviceDesc.defaultQueue.nextInChain = nullptr;
-	deviceDesc.defaultQueue.label = "The default queue";
-	deviceDesc.deviceLostCallback = [](WGPUDeviceLostReason reason, char const *message, void * /* pUserData */)
-	{
-		std::cout << "Device lost: reason " << reason;
-		if (message)
-			std::cout << " (" << message << ")";
-		std::cout << std::endl;
-	};
-	device = adapter.requestDevice(deviceDesc);
-	std::cout << "Got device: " << device << std::endl;
-
-	uncapturedErrorCallbackHandle = device.setUncapturedErrorCallback([](ErrorType type, char const *message)
-																	  {
-		std::cout << "Uncaptured device error: type " << type;
-		if (message) std::cout << " (" << message << ")";
-		std::cout << std::endl; });
-
-	queue = device.getQueue();
 
 	// Configure the surface
 	SurfaceConfiguration config = {};
@@ -216,21 +182,82 @@ bool Application::Initialize()
 
 	surface.configure(config);
 
-	// Release the adapter only after it has been fully utilized
-	adapter.release();
-
 	InitializePipeline();
 
+	crashed = false;
+
 	return true;
+}
+
+bool Application::Initialize()
+{
+
+	shaderManager = new ShaderManager("C:/Github/webgpucpp/projects/client/shaders");
+
+	auto width = 640 * 2;
+	auto height = width / 2;
+	// Open window
+	glfwInit();
+	glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
+	glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
+	window = glfwCreateWindow(width, height, "Learn WebGPU", nullptr, nullptr);
+
+	Instance instance = wgpuCreateInstance(nullptr);
+
+	surface = glfwGetWGPUSurface(instance, window);
+
+	std::cout << "Requesting adapter..." << std::endl;
+	surface = glfwGetWGPUSurface(instance, window);
+
+	RequestAdapterOptions adapterOpts = {};
+	adapterOpts.compatibleSurface = surface;
+	adapter = instance.requestAdapter(adapterOpts);
+	std::cout << "Got adapter: " << adapter << std::endl;
+
+	instance.release();
+
+	std::cout << "Requesting device..." << std::endl;
+	DeviceDescriptor deviceDesc = {};
+	deviceDesc.label = "My Device";
+	deviceDesc.requiredFeatureCount = 0;
+	deviceDesc.requiredLimits = nullptr;
+	deviceDesc.defaultQueue.nextInChain = nullptr;
+	deviceDesc.defaultQueue.label = "The default queue";
+	deviceDesc.deviceLostCallback = [](WGPUDeviceLostReason reason, char const *message, void * /* pUserData */)
+	{
+		std::cout << "Device lost: reason " << reason;
+		if (message)
+			std::cout << " (" << message << ")";
+		std::cout << std::endl;
+	};
+	device = adapter.requestDevice(deviceDesc);
+	std::cout << "Got device: " << device << std::endl;
+	uncapturedErrorCallbackHandle = device.setUncapturedErrorCallback([](ErrorType type, char const *message)
+																	  {
+		std::cout << "Uncaptured device error: type " << type;
+		if (message) std::cout << " (" << message << ")";
+		std::cout << std::endl; });
+
+	queue = device.getQueue();
+
+	InitWGPU();
+
+	return true;
+}
+
+void Application::TerminateWGPU()
+{
+	surface.unconfigure();
 }
 
 void Application::Terminate()
 {
 	pipeline.release();
-	surface.unconfigure();
 	queue.release();
 	surface.release();
 	device.release();
+	adapter.release();
+	TerminateWGPU();
 	delete shaderManager;
 	glfwDestroyWindow(window);
 	glfwTerminate();
@@ -243,7 +270,10 @@ void Application::MainLoop()
 	// Get the next target texture view
 	TextureView targetView = GetNextSurfaceTextureView();
 	if (!targetView)
+	{
+		crashed = true;
 		return;
+	}
 
 	// Create a command encoder for the draw call
 	CommandEncoderDescriptor encoderDesc = {};
@@ -274,6 +304,7 @@ void Application::MainLoop()
 
 	// Select which render pipeline to use
 	renderPass.setPipeline(pipeline);
+
 	// Draw 1 instance of a 3-vertices shape
 	renderPass.draw(3, 1, 0, 0);
 
@@ -316,6 +347,7 @@ TextureView Application::GetNextSurfaceTextureView()
 	{
 		return nullptr;
 	}
+
 	Texture texture = surfaceTexture.texture;
 
 	// Create a view for this surface texture

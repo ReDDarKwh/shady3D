@@ -90,7 +90,7 @@ fn fs_main(@location(0) fragUV: vec2<f32>) -> @location(0) vec4f {
     let bar = 1 - smoothstep(0.0, 0.001, sdBox(uv2 - logoOffset + vec2(0, 0.09), vec2(0.06, 0.015)));
     let bg = 1 - smoothstep(0.0, 0.001, sdBox(uv - vec2(0.302, 0.314), vec2(0.22, 0.19))) - (tailTop + bar + tailBottom + centerCross + eggOut + eggOut2 + sideOut + sideOut2);
 
-    var c = mix(vec3f(1.0, 1.0, 1.0), vec3f(0.0, 0.2, 0.37), bg);
+    var c = mix(vec3f(1.0, 1.0, 1.0), vec3f(0.3, 0.4, 0.0), bg);
 
     return vec4f(c, 1);
 }
