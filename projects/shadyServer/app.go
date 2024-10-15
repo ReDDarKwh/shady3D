@@ -70,8 +70,11 @@ func (a *App) startup(ctx context.Context) {
 			}
 			fmt.Println("event:", event)
 			if event.Has(fsnotify.Write) {
+
 				fmt.Println("modified file:", event.Name)
-				conn.Write([]byte(event.Name + "\n"))
+				if conn != nil {
+					conn.Write([]byte(event.Name + "\n"))
+				}
 			}
 		case err, ok := <-watcher.Errors:
 			if !ok {

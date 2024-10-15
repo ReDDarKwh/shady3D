@@ -4,7 +4,9 @@
     ],
     "cmake.buildDirectory": "${workspaceFolder}/build-wgpu",
     "cmake.debugConfig": {
-        "args": ["8888"]
+        "args": [
+            "8888"
+        ]
     },
     "files.associations": {
         "algorithm": "cpp",
@@ -108,4 +110,5 @@
         "valarray": "cpp"
     },
     "editor.renderWhitespace": "all",
+    "editor.formatOnSave": true
 }
