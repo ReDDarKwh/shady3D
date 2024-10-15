@@ -9,17 +9,16 @@
 #include <emscripten.h>
 #endif // __EMSCRIPTEN__
 
-#include <iostream>
-#include <cassert>
 #include <vector>
-
-#include <cstdlib>
-#include <cstring>
-#include "asio.hpp"
 #include <thread>
 #include <atomic>
+#include <map>
+#include <filesystem>
+#include <fstream>
+#include <sstream>
+#include <string>
 
-using asio::ip::tcp;
+#include "./editorClient.cpp"
 
 enum
 {
@@ -29,9 +28,43 @@ enum
 // Avoid the "wgpu::" prefix in front of all WebGPU symbols
 using namespace wgpu;
 
-const char *shaderSource =
-#include "shaders/main.wgsl"
-	;
+class ShaderManager
+{
+public:
+	ShaderManager(std::string shaderRootPath)
+	{
+		rootPath = shaderRootPath;
+		for (const auto &entry : std::filesystem::recursive_directory_iterator(shaderRootPath))
+		{
+			const auto path = entry.path().string();
+			UpdateShader(path);
+		}
+	}
+
+	void UpdateShader(std::string shaderLocation)
+	{
+		const auto relativePath = shaderLocation.substr(
+			rootPath.length() + 1, std::string::npos);
+
+		std::ifstream file(shaderLocation);
+		file.seekg(0, std::ios::end);
+		size_t size = file.tellg();
+		std::string shaderSource(size, ' ');
+		file.seekg(0);
+		file.read(shaderSource.data(), size);
+
+		shaderMap[relativePath] = shaderSource;
+	}
+
+	std::string GetShader(std::string shaderName)
+	{
+		return shaderMap[shaderName];
+	}
+
+private:
+	std::map<std::string, std::string> shaderMap;
+	std::string rootPath;
+};
 
 class Application
 {
@@ -48,13 +81,14 @@ public:
 	// Return true as long as the main loop should keep on running
 	bool IsRunning();
 
+	void InitializePipeline();
+
+	ShaderManager *shaderManager;
+
 private:
 	TextureView GetNextSurfaceTextureView();
 
-	void InitializePipeline();
-
 private:
-	// We put here all the variables that are shared between init and main loop
 	GLFWwindow *window;
 	Device device;
 	Queue queue;
@@ -64,56 +98,6 @@ private:
 	RenderPipeline pipeline;
 };
 
-
-class Client {
-public:
-    Client(asio::io_context& io_context, const std::string& host, const std::string& port)
-        : socket_(io_context), resolver_(io_context), strand_(io_context), running_(true) {
-        connect(host, port);
-    }
-
-    ~Client() {
-        running_ = false;
-        if (socket_.is_open()) {
-            socket_.close();
-        }
-    }
-
-private:
-    void connect(const std::string& host, const std::string& port) {
-        auto endpoints = resolver_.resolve(host, port);
-        asio::async_connect(socket_, endpoints,
-            [this](std::error_code ec, asio::ip::tcp::endpoint) {
-                if (!ec) {
-                    std::cout << "Connected successfully!\n";
-                    read_messages();
-                } else {
-                    std::cerr << "Connection failed: " << ec.message() << "\n";
-                }
-            });
-    }
-
-    void read_messages() {
-        asio::async_read_until(socket_, asio::dynamic_buffer(read_buffer_), '\n',
-            asio::bind_executor(strand_, [this](std::error_code ec, std::size_t bytes_transferred) {
-                if (!ec && running_) {
-                    std::string message(read_buffer_.substr(0, bytes_transferred - 1));
-                    std::cout << "Received: " << message << std::endl;
-                    read_buffer_.erase(0, bytes_transferred);
-                    read_messages(); // Continue reading
-                } else if (ec) {
-                    std::cerr << "Read error: " << ec.message() << "\n";
-                }
-            }));
-    }
-
-    asio::ip::tcp::socket socket_;
-    asio::ip::tcp::resolver resolver_;
-    asio::io_context::strand strand_;
-    std::string read_buffer_;
-    std::atomic<bool> running_;
-};
-
 int main()
 {
 
@@ -121,14 +105,19 @@ int main()
 	{
 		asio::io_context io_context;
 
-		Client client(io_context, "127.0.0.1", "43957");
-
 		Application app;
+
+		Client client(io_context, "127.0.0.1", "43957");
 
 		if (!app.Initialize())
 		{
 			return 1;
 		}
+
+		client.BindOnMessage([&app](auto str)
+							 {
+			app.shaderManager->UpdateShader(str);
+			app.InitializePipeline(); });
 
 #ifdef __EMSCRIPTEN__
 		// Equivalent of the main loop when using Emscripten:
@@ -142,13 +131,12 @@ int main()
 		while (app.IsRunning())
 		{
 			app.MainLoop();
-			io_context.poll(); 
+			io_context.poll();
 		}
 #endif // __EMSCRIPTEN__
 
 		app.Terminate();
 		io_context.stop();
-		
 	}
 	catch (std::exception &e)
 	{
@@ -160,6 +148,8 @@ int main()
 
 bool Application::Initialize()
 {
+
+	shaderManager = new ShaderManager("C:/Github/webgpucpp/projects/client/shaders");
 
 	auto width = 640 * 2;
 	auto height = width / 2;
@@ -241,6 +231,7 @@ void Application::Terminate()
 	queue.release();
 	surface.release();
 	device.release();
+	delete shaderManager;
 	glfwDestroyWindow(window);
 	glfwTerminate();
 }
@@ -345,6 +336,11 @@ TextureView Application::GetNextSurfaceTextureView()
 void Application::InitializePipeline()
 {
 
+	if (pipeline)
+	{
+		pipeline.release();
+	}
+
 	ShaderModuleDescriptor shaderDesc;
 
 #ifdef WEBGPU_BACKEND_WGPU
@@ -353,13 +349,15 @@ void Application::InitializePipeline()
 #endif
 
 	// We use the extension mechanism to specify the WGSL part of the shader module descriptor
-	ShaderModuleWGSLDescriptor shaderCodeDesc;
+	ShaderModuleWGSLDescriptor shaderCodeDesc{};
 	// Set the chained struct's header
 	shaderCodeDesc.chain.next = nullptr;
 	shaderCodeDesc.chain.sType = SType::ShaderModuleWGSLDescriptor;
 	// Connect the chain
 	shaderDesc.nextInChain = &shaderCodeDesc.chain;
-	shaderCodeDesc.code = shaderSource;
+
+	const auto str = shaderManager->GetShader("main.wgsl");
+	shaderCodeDesc.code = &str[0];
 	ShaderModule shaderModule = device.createShaderModule(shaderDesc);
 
 	RenderPipelineDescriptor pipelineDesc;

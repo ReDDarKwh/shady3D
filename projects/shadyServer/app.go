@@ -54,7 +54,7 @@ func (a *App) startup(ctx context.Context) {
 		log.Fatal(err)
 	}
 
-	err = watcher.Add("C:/Users/turbo/Desktop")
+	err = watcher.Add("C:/Github/webgpucpp/projects/client/shaders")
 	if err != nil {
 		fmt.Println(err)
 	}
