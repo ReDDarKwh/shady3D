@@ -3,7 +3,6 @@
 #include <iostream>
 #include <functional>
 
-
 using asio::ip::tcp;
 
 class Client
@@ -24,7 +23,8 @@ public:
 		}
 	}
 
-	void BindOnMessage(std::function<void(std::string)> callback){
+	void BindOnMessage(std::function<void(std::string)> callback)
+	{
 		onMessage_ = callback;
 	}
 

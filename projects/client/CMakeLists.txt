@@ -16,7 +16,7 @@ add_subdirectory(thirdparty/webgpu)
 add_subdirectory(thirdparty/glfw3webgpu)
 
 add_executable(shadyClient
-	main.cpp editorClient.cpp
+	main.cpp editorClient.hpp
 )
 
 target_link_libraries(shadyClient PRIVATE glfw webgpu glfw3webgpu asio)
