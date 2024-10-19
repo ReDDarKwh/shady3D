@@ -532,7 +532,7 @@ void Application::InitializePipeline()
 
 	// Default value as well (irrelevant for count = 1 anyways)
 	pipelineDesc.multisample.alphaToCoverageEnabled = false;
-	pipelineDesc.layout = nullptr;
+	pipelineDesc.layout = layout;
 
 	pipeline = device.createRenderPipeline(pipelineDesc);
 
