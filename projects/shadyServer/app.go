@@ -153,41 +153,6 @@ func (a *App) startup(ctx context.Context) {
 		}
 	}()
 
-	// watcher, err := fsnotify.NewWatcher()
-	// if err != nil {
-	// 	log.Fatal(err)
-	// }
-
-	// err = watcher.Add("C:/Github/webgpucpp/projects/client/shaders")
-	// if err != nil {
-	// 	fmt.Println(err)
-	// }
-
-	// defer watcher.Close()
-
-	// // Start listening for events.
-	// for {
-	// 	select {
-	// 	case event, ok := <-watcher.Events:
-	// 		if !ok {
-	// 			return
-	// 		}
-	// 		fmt.Println("event:", event)
-	// 		if event.Has(fsnotify.Write) {
-
-	// 			fmt.Println("modified file:", event.Name)
-	// 			if conn != nil {
-	// 				conn.Write([]byte(event.Name + "\n"))
-	// 			}
-	// 		}
-	// 	case err, ok := <-watcher.Errors:
-	// 		if !ok {
-	// 			return
-	// 		}
-	// 		fmt.Println("error:", err)
-	// 	}
-	// }
-
 	dedup(&conn, "C:/Github/webgpucpp/projects/client/shaders")
 }
 

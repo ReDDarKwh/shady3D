@@ -173,8 +173,17 @@ int main()
 
 void Application::Resize(int newWidth, int newHeight)
 {
+	if (newWidth == 0 || newWidth == 0)
+	{
+		return;
+	}
+
 	config.width = newWidth;
 	config.height = newHeight;
+
+	std::vector<uint32_t> res = {(uint32_t)newWidth, (uint32_t)newHeight};
+
+	queue.writeBuffer(sporadicUniformBuffer, 0, res.data(), 8);
 
 	surface.configure(config);
 }
@@ -247,14 +256,12 @@ bool Application::Initialize()
 	config.presentMode = PresentMode::Fifo;
 	config.alphaMode = CompositeAlphaMode::Auto;
 
-	surface.configure(config);
-
-	adapter.release();
-
 	InitializeLayouts();
 	InitializePipeline();
 	InitializeBindGroups();
 
+	Resize(width, height);
+	adapter.release();
 	return true;
 }
 
@@ -446,16 +453,17 @@ void Application::InitializeLayouts()
 	frameBindGroupLayout = device.createBindGroupLayout(bindGroupLayoutDesc);
 
 	bindingLayout.buffer.minBindingSize = 4 * 2;
-	bindingLayout.binding = 1;
+	bindingLayout.visibility = ShaderStage::Fragment | ShaderStage::Vertex;
 
 	sporadicBindGroupLayout = device.createBindGroupLayout(bindGroupLayoutDesc);
 
-	std::vector<wgpu::BindGroupLayout> layouts = {frameBindGroupLayout, sporadicBindGroupLayout};
+	std::vector<WGPUBindGroupLayout> layouts = {frameBindGroupLayout, sporadicBindGroupLayout};
 
 	// Create the pipeline layout
 	PipelineLayoutDescriptor layoutDesc{};
-	layoutDesc.bindGroupLayoutCount = 2;
-	layoutDesc.bindGroupLayouts = (WGPUBindGroupLayout *)layouts.data();
+	layoutDesc.nextInChain = nullptr;
+	layoutDesc.bindGroupLayoutCount = layouts.size();
+	layoutDesc.bindGroupLayouts = layouts.data();
 	layout = device.createPipelineLayout(layoutDesc);
 }
 
@@ -572,7 +580,6 @@ void Application::InitializeBindGroups()
 
 	frameBindGroup = device.createBindGroup(bindGroupDesc);
 
-	binding.binding = 1;
 	binding.buffer = sporadicUniformBuffer;
 	binding.size = 4 * 2;
 	bindGroupDesc.layout = sporadicBindGroupLayout;
