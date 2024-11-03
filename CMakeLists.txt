@@ -68,7 +68,7 @@ add_subdirectory(thirdparty/webgpu)
 add_subdirectory(thirdparty/glfw3webgpu)
 
 add_executable(shadyClient
-	main.cpp editorClient.hpp
+	src/main.cpp src/editorClient.hpp
 )
 
 find_package(glm CONFIG REQUIRED)
