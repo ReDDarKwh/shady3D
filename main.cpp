@@ -191,7 +191,7 @@ void Application::Resize(int newWidth, int newHeight)
 bool Application::Initialize()
 {
 
-	shaderManager = new ShaderManager("C:/Github/webgpucpp/projects/client/shaders");
+	shaderManager = new ShaderManager("C:/Github/webgpucpp/shaders");
 
 	auto width = 640 * 2;
 	auto height = width / 2;
