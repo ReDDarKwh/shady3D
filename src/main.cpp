@@ -19,6 +19,7 @@
 #include <string>
 
 #include "./editorClient.hpp"
+#include "./loader.hpp"
 
 enum
 {
@@ -255,6 +256,10 @@ bool Application::Initialize()
 	config.device = device;
 	config.presentMode = PresentMode::Fifo;
 	config.alphaMode = CompositeAlphaMode::Auto;
+
+	std::vector<Loader::VertexAttributes> vertexData;
+
+	Loader::LoadGeometryFromObj("resources/meshes/pyramid.obj", vertexData);
 
 	InitializeLayouts();
 	InitializePipeline();

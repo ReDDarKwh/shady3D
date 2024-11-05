@@ -67,9 +67,11 @@ endif()
 add_subdirectory(thirdparty/webgpu)
 add_subdirectory(thirdparty/glfw3webgpu)
 
-add_executable(shadyClient
-	src/main.cpp src/editorClient.hpp
+file(GLOB_RECURSE SOURCES 
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp"
 )
+
+add_executable(shadyClient ${SOURCES})
 
 find_package(glm CONFIG REQUIRED)
 
@@ -101,3 +103,8 @@ if (EMSCRIPTEN)
 	set_target_properties(shadyClient PROPERTIES SUFFIX ".html")
 	target_link_options(shadyClient PRIVATE -sASYNCIFY)
 endif()
+
+add_custom_command(TARGET shadyClient POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+        "${PROJECT_SOURCE_DIR}/resources"
+        $<TARGET_FILE_DIR:shadyClient>/resources)
