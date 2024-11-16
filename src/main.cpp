@@ -26,6 +26,13 @@ enum
 	max_length = 1024
 };
 
+struct FrameUniforms
+{
+	mat4x4 modelViewProjectionMatrix;
+	float time;
+	float _pad[3];
+};
+
 // Avoid the "wgpu::" prefix in front of all WebGPU symbols
 using namespace wgpu;
 
@@ -70,6 +77,7 @@ private:
 class Application
 {
 public:
+
 	void Resize(int width, int height);
 	// Initialize everything and return true if it went all right
 	bool Initialize();
@@ -91,7 +99,7 @@ public:
 
 	void InitializePipeline();
 
-	void InitializeBindGroups();
+	void InitializeBindGroupsAndBuffers();
 
 	RequiredLimits GetRequiredLimits(Adapter adapter) const;
 
@@ -112,11 +120,17 @@ private:
 	SurfaceConfiguration config;
 	Buffer frameUniformBuffer;
 	Buffer sporadicUniformBuffer;
+	Buffer vertexBuffer;
+	uint64_t vertexBufferSize;
 	PipelineLayout layout;
 	BindGroupLayout frameBindGroupLayout;
 	BindGroupLayout sporadicBindGroupLayout;
 	BindGroup frameBindGroup;
 	BindGroup sporadicBindGroup;
+	int vertexCount;
+	Texture depthTexture;
+	TextureView depthTextureView;
+	TextureFormat depthTextureFormat = TextureFormat::Depth24Plus;
 };
 
 int main()
@@ -183,6 +197,40 @@ void Application::Resize(int newWidth, int newHeight)
 	config.height = newHeight;
 
 	std::vector<uint32_t> res = {(uint32_t)newWidth, (uint32_t)newHeight};
+
+	if(depthTexture){
+		depthTexture.destroy();
+		depthTexture.release();
+	}
+
+	if(depthTextureView){
+		depthTextureView.release();
+	}
+
+	// Create the depth texture
+	TextureDescriptor depthTextureDesc;
+	depthTextureDesc.dimension = TextureDimension::_2D;
+	depthTextureDesc.format = depthTextureFormat;
+	depthTextureDesc.mipLevelCount = 1;
+	depthTextureDesc.sampleCount = 1;
+	depthTextureDesc.size = {res[0], res[1], 1};
+	depthTextureDesc.usage = TextureUsage::RenderAttachment;
+	depthTextureDesc.viewFormatCount = 1;
+	depthTextureDesc.viewFormats = (WGPUTextureFormat *)&depthTextureFormat;
+	depthTexture = device.createTexture(depthTextureDesc);
+	std::cout << "Depth texture: " << depthTexture << std::endl;
+
+	// Create the view of the depth texture manipulated by the rasterizer
+	TextureViewDescriptor depthTextureViewDesc;
+	depthTextureViewDesc.aspect = TextureAspect::DepthOnly;
+	depthTextureViewDesc.baseArrayLayer = 0;
+	depthTextureViewDesc.arrayLayerCount = 1;
+	depthTextureViewDesc.baseMipLevel = 0;
+	depthTextureViewDesc.mipLevelCount = 1;
+	depthTextureViewDesc.dimension = TextureViewDimension::_2D;
+	depthTextureViewDesc.format = depthTextureFormat;
+	depthTextureView = depthTexture.createView(depthTextureViewDesc);
+	std::cout << "Depth texture view: " << depthTextureView << std::endl;
 
 	queue.writeBuffer(sporadicUniformBuffer, 0, res.data(), 8);
 
@@ -257,13 +305,9 @@ bool Application::Initialize()
 	config.presentMode = PresentMode::Fifo;
 	config.alphaMode = CompositeAlphaMode::Auto;
 
-	std::vector<Loader::VertexAttributes> vertexData;
-
-	Loader::LoadGeometryFromObj("resources/meshes/pyramid.obj", vertexData);
-
 	InitializeLayouts();
 	InitializePipeline();
-	InitializeBindGroups();
+	InitializeBindGroupsAndBuffers();
 
 	Resize(width, height);
 	adapter.release();
@@ -280,23 +324,18 @@ RequiredLimits Application::GetRequiredLimits(Adapter adapter) const
 	RequiredLimits requiredLimits = Default;
 
 	// We use at most 2 vertex attributes
-	requiredLimits.limits.maxVertexAttributes = 2;
+	requiredLimits.limits.maxVertexAttributes = 4;
 	// We should also tell that we use 1 vertex buffers
 	requiredLimits.limits.maxVertexBuffers = 1;
 	// Maximum size of a buffer is 15 vertices of 5 float each
-	requiredLimits.limits.maxBufferSize = 15 * 5 * sizeof(float);
-	// Maximum stride between 2 consecutive vertices in the vertex buffer
-	requiredLimits.limits.maxVertexBufferArrayStride = 5 * sizeof(float);
+	requiredLimits.limits.maxBufferSize = 10000 * sizeof(Loader::VertexAttributes);
+	requiredLimits.limits.maxUniformBufferBindingSize = 80;
 
-	// There is a maximum of 3 float forwarded from vertex to fragment shader
-	requiredLimits.limits.maxInterStageShaderComponents = 3;
+	requiredLimits.limits.maxVertexBufferArrayStride = sizeof(Loader::VertexAttributes);
 
-	// We use at most 1 bind group for now
+	requiredLimits.limits.maxInterStageShaderComponents = 6;
 	requiredLimits.limits.maxBindGroups = 2;
-	// We use at most 1 uniform buffer per stage
 	requiredLimits.limits.maxUniformBuffersPerShaderStage = 2;
-	// Uniform structs have a size of maximum 16 float (more than what we need)
-	requiredLimits.limits.maxUniformBufferBindingSize = 16 * 4;
 
 	// These two limits are different because they are "minimum" limits,
 	// they are the only ones we are may forward from the adapter's supported
@@ -326,6 +365,14 @@ void Application::Terminate()
 	device.release();
 	sporadicBindGroup.release();
 	frameBindGroup.release();
+
+	vertexBuffer.destroy();
+	vertexBuffer.release();
+
+	depthTextureView.release();
+	depthTexture.destroy();
+	depthTexture.release();
+
 	TerminateWGPU();
 	delete shaderManager;
 	glfwDestroyWindow(window);
@@ -336,8 +383,36 @@ void Application::MainLoop()
 {
 	glfwPollEvents();
 
-	float t = static_cast<float>(glfwGetTime()); // glfwGetTime returns a double
-	queue.writeBuffer(frameUniformBuffer, 0, &t, 4);
+	// Translate the view
+	vec3 focalPoint(0.0, 0.0, -1.0);
+	// Rotate the object
+	float angle1 = 2.0f; // arbitrary time
+	// Rotate the view point
+	float angle2 = 3.0f * 3.14f / 4.0f;
+
+	mat4x4 S = glm::scale(mat4x4(1.0), vec3(0.01f));
+	mat4x4 T1 = mat4x4(1.0);
+	mat4x4 R1 = glm::rotate(mat4x4(1.0), angle1, vec3(0.0, 0.0, 1.0));
+	mat4x4 modelMatrix = R1 * T1 * S;
+
+	mat4x4 R2 = glm::rotate(mat4x4(1.0), -angle2, vec3(1.0, 0.0, 0.0));
+	mat4x4 T2 = glm::translate(mat4x4(1.0), -focalPoint);
+	mat4x4 viewMatrix = T2 * R2;
+
+	float ratio = 640.0f / 480.0f;
+	float focalLength = 2.0;
+	float nearr = 0.01f;
+	float farr = 100.0f;
+	float divider = 1 / (focalLength * (farr - nearr));
+	mat4x4 projectionMatrix = transpose(mat4x4(
+		1.0, 0.0, 0.0, 0.0,
+		0.0, ratio, 0.0, 0.0,
+		0.0, 0.0, farr * divider, -farr * nearr * divider,
+		0.0, 0.0, 1.0 / focalLength, 0.0));
+
+	FrameUniforms uniforms = {projectionMatrix * viewMatrix * modelMatrix, static_cast<float>(glfwGetTime())};
+
+	queue.writeBuffer(frameUniformBuffer, 0, &uniforms, sizeof(FrameUniforms));
 
 	// Get the next target texture view
 	TextureView targetView = GetNextSurfaceTextureView();
@@ -368,7 +443,35 @@ void Application::MainLoop()
 
 	renderPassDesc.colorAttachmentCount = 1;
 	renderPassDesc.colorAttachments = &renderPassColorAttachment;
-	renderPassDesc.depthStencilAttachment = nullptr;
+
+	{
+		// We now add a depth/stencil attachment:
+		RenderPassDepthStencilAttachment depthStencilAttachment;
+		// The view of the depth texture
+		depthStencilAttachment.view = depthTextureView;
+
+		// The initial value of the depth buffer, meaning "far"
+		depthStencilAttachment.depthClearValue = 1.0f;
+		// Operation settings comparable to the color attachment
+		depthStencilAttachment.depthLoadOp = LoadOp::Clear;
+		depthStencilAttachment.depthStoreOp = StoreOp::Store;
+		// we could turn off writing to the depth buffer globally here
+		depthStencilAttachment.depthReadOnly = false;
+
+		// Stencil setup, mandatory but unused
+		depthStencilAttachment.stencilClearValue = 0;
+#ifdef WEBGPU_BACKEND_WGPU
+		depthStencilAttachment.stencilLoadOp = LoadOp::Clear;
+		depthStencilAttachment.stencilStoreOp = StoreOp::Store;
+#else
+		depthStencilAttachment.stencilLoadOp = LoadOp::Undefined;
+		depthStencilAttachment.stencilStoreOp = StoreOp::Undefined;
+#endif
+		depthStencilAttachment.stencilReadOnly = true;
+
+		renderPassDesc.depthStencilAttachment = &depthStencilAttachment;
+	}
+
 	renderPassDesc.timestampWrites = nullptr;
 
 	// Create the render pass and end it immediately (we only clear the screen but do not draw anything)
@@ -376,12 +479,12 @@ void Application::MainLoop()
 
 	// Select which render pipeline to use
 	renderPass.setPipeline(pipeline);
-
+	renderPass.setVertexBuffer(0, vertexBuffer, 0, vertexBufferSize);
 	renderPass.setBindGroup(0, frameBindGroup, 0, nullptr);
 	renderPass.setBindGroup(1, sporadicBindGroup, 0, nullptr);
 
 	// Draw 1 instance of a 3-vertices shape
-	renderPass.draw(3, 1, 0, 0);
+	renderPass.draw(vertexCount, 1, 0, 0);
 
 	renderPass.end();
 	renderPass.release();
@@ -442,14 +545,15 @@ TextureView Application::GetNextSurfaceTextureView()
 
 void Application::InitializeLayouts()
 {
+
 	BindGroupLayoutEntry bindingLayout = Default;
 
 	// The binding index as used in the @binding attribute in the shader
 	bindingLayout.binding = 0;
 	// The stage that needs to access this resource
-	bindingLayout.visibility = ShaderStage::Fragment;
+	bindingLayout.visibility = ShaderStage::Fragment | ShaderStage::Vertex;
 	bindingLayout.buffer.type = BufferBindingType::Uniform;
-	bindingLayout.buffer.minBindingSize = 4;
+	bindingLayout.buffer.minBindingSize = sizeof(FrameUniforms);
 
 	// Create a bind group layout
 	BindGroupLayoutDescriptor bindGroupLayoutDesc{};
@@ -465,11 +569,12 @@ void Application::InitializeLayouts()
 	std::vector<WGPUBindGroupLayout> layouts = {frameBindGroupLayout, sporadicBindGroupLayout};
 
 	// Create the pipeline layout
-	PipelineLayoutDescriptor layoutDesc{};
-	layoutDesc.nextInChain = nullptr;
-	layoutDesc.bindGroupLayoutCount = layouts.size();
-	layoutDesc.bindGroupLayouts = layouts.data();
-	layout = device.createPipelineLayout(layoutDesc);
+	PipelineLayoutDescriptor pipelineLayoutDesc{};
+	pipelineLayoutDesc.nextInChain = nullptr;
+	pipelineLayoutDesc.bindGroupLayoutCount = layouts.size();
+	pipelineLayoutDesc.bindGroupLayouts = layouts.data();
+
+	layout = device.createPipelineLayout(pipelineLayoutDesc);
 }
 
 void Application::InitializePipeline()
@@ -496,13 +601,38 @@ void Application::InitializePipeline()
 	// Connect the chain
 	shaderDesc.nextInChain = &shaderCodeDesc.chain;
 
-	const auto str = shaderManager->GetShader("radial.wgsl");
+	const auto str = shaderManager->GetShader("model.wgsl");
 	shaderCodeDesc.code = &str[0];
 	ShaderModule shaderModule = device.createShaderModule(shaderDesc);
 
 	RenderPipelineDescriptor pipelineDesc;
-	pipelineDesc.vertex.bufferCount = 0;
-	pipelineDesc.vertex.buffers = nullptr;
+
+	std::vector<VertexAttribute> vertexAttribs(3);
+
+	// Position
+	vertexAttribs[0].shaderLocation = 0;
+	vertexAttribs[0].format = VertexFormat::Float32x3;
+	vertexAttribs[0].offset = 0;
+
+	// Normal
+	vertexAttribs[1].shaderLocation = 1;
+	vertexAttribs[1].format = VertexFormat::Float32x3;
+	vertexAttribs[1].offset = offsetof(Loader::VertexAttributes, normal);
+
+	// Color
+	vertexAttribs[2].shaderLocation = 2;
+	vertexAttribs[2].format = VertexFormat::Float32x3;
+	vertexAttribs[2].offset = offsetof(Loader::VertexAttributes, color);
+
+	VertexBufferLayout vertexBufferLayout;
+	vertexBufferLayout.attributeCount = (uint32_t)vertexAttribs.size();
+	vertexBufferLayout.attributes = vertexAttribs.data();
+	vertexBufferLayout.arrayStride = sizeof(Loader::VertexAttributes);
+	vertexBufferLayout.stepMode = VertexStepMode::Vertex;
+
+	pipelineDesc.vertex.bufferCount = 1;
+	pipelineDesc.vertex.buffers = &vertexBufferLayout;
+
 	pipelineDesc.vertex.module = shaderModule;
 	pipelineDesc.vertex.entryPoint = "vs_main";
 	pipelineDesc.vertex.constantCount = 0;
@@ -510,10 +640,11 @@ void Application::InitializePipeline()
 
 	pipelineDesc.primitive.topology = PrimitiveTopology::TriangleList;
 	pipelineDesc.primitive.stripIndexFormat = IndexFormat::Undefined;
-	pipelineDesc.primitive.frontFace = FrontFace::CW;
-	pipelineDesc.primitive.cullMode = CullMode::Back;
+	pipelineDesc.primitive.frontFace = FrontFace::CCW;
+	pipelineDesc.primitive.cullMode = CullMode::None;
 
 	FragmentState fragmentState;
+	pipelineDesc.fragment = &fragmentState;
 	fragmentState.module = shaderModule;
 	fragmentState.entryPoint = "fs_main";
 	fragmentState.constantCount = 0;
@@ -536,35 +667,66 @@ void Application::InitializePipeline()
 	// attachment.
 	fragmentState.targetCount = 1;
 	fragmentState.targets = &colorTarget;
-	pipelineDesc.fragment = &fragmentState;
 
-	pipelineDesc.depthStencil = nullptr;
+	// We setup a depth buffer state for the render pipeline
+	DepthStencilState depthStencilState = Default;
+	// Keep a fragment only if its depth is lower than the previously blended one
+	depthStencilState.depthCompare = CompareFunction::Less;
+	// Each time a fragment is blended into the target, we update the value of the Z-buffer
+	depthStencilState.depthWriteEnabled = true;
+	// Store the format in a variable as later parts of the code depend on it
+	
+	depthStencilState.format = depthTextureFormat;
+	// Deactivate the stencil alltogether
+	depthStencilState.stencilReadMask = 0;
+	depthStencilState.stencilWriteMask = 0;
+
+	pipelineDesc.depthStencil = &depthStencilState;
 
 	pipelineDesc.multisample.count = 1;
 	pipelineDesc.multisample.mask = ~0u;
-
-	// Default value as well (irrelevant for count = 1 anyways)
 	pipelineDesc.multisample.alphaToCoverageEnabled = false;
+
 	pipelineDesc.layout = layout;
 
 	pipeline = device.createRenderPipeline(pipelineDesc);
 
+	
+
 	shaderModule.release();
 }
 
-void Application::InitializeBindGroups()
+void Application::InitializeBindGroupsAndBuffers()
 {
-	BufferDescriptor bufferDesc;
+	std::vector<Loader::VertexAttributes> vertexData;
+	Loader::LoadGeometryFromObj("resources/meshes/cat.obj", vertexData);
 
-	bufferDesc.size = 1 * 4;
-	bufferDesc.usage = BufferUsage::CopyDst | BufferUsage::Uniform;
-	bufferDesc.mappedAtCreation = false;
-	frameUniformBuffer = device.createBuffer(bufferDesc);
+	{
+		BufferDescriptor bufferDesc;
+		bufferDesc.size = vertexData.size() * sizeof(Loader::VertexAttributes);
+		bufferDesc.usage = BufferUsage::CopyDst | BufferUsage::Vertex;
+		bufferDesc.mappedAtCreation = false;
+		vertexBuffer = device.createBuffer(bufferDesc);
+		vertexBufferSize = bufferDesc.size;
+		vertexCount = static_cast<int>(vertexData.size());
+		queue.writeBuffer(vertexBuffer, 0, vertexData.data(), bufferDesc.size);
+	}
 
-	bufferDesc.size = 2 * 4;
-	bufferDesc.usage = BufferUsage::CopyDst | BufferUsage::Uniform;
-	bufferDesc.mappedAtCreation = false;
-	sporadicUniformBuffer = device.createBuffer(bufferDesc);
+	{
+		BufferDescriptor bufferDesc;
+		bufferDesc.size = sizeof(FrameUniforms);
+		bufferDesc.usage = BufferUsage::CopyDst | BufferUsage::Uniform;
+		bufferDesc.mappedAtCreation = false;
+		frameUniformBuffer = device.createBuffer(bufferDesc);
+	}
+
+	{
+		BufferDescriptor bufferDesc;
+		bufferDesc.size = 2 * 4;
+		bufferDesc.usage = BufferUsage::CopyDst | BufferUsage::Uniform;
+		bufferDesc.mappedAtCreation = false;
+		sporadicUniformBuffer = device.createBuffer(bufferDesc);
+	}
 
 	BindGroupEntry binding{};
 
@@ -575,7 +737,7 @@ void Application::InitializeBindGroups()
 	// multiple uniform blocks.
 	binding.offset = 0;
 	// And we specify again the size of the buffer.
-	binding.size = 4;
+	binding.size = sizeof(FrameUniforms);
 
 	BindGroupDescriptor bindGroupDesc{};
 	bindGroupDesc.layout = frameBindGroupLayout;
