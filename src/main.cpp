@@ -29,6 +29,7 @@ enum
 struct FrameUniforms
 {
 	mat4x4 modelViewProjectionMatrix;
+	mat4x4 modelMatrix;
 	float time;
 	float _pad[3];
 };
@@ -235,6 +236,8 @@ void Application::Resize(int newWidth, int newHeight)
 	queue.writeBuffer(sporadicUniformBuffer, 0, res.data(), 8);
 
 	surface.configure(config);
+
+	MainLoop();
 }
 
 bool Application::Initialize()
@@ -329,7 +332,7 @@ RequiredLimits Application::GetRequiredLimits(Adapter adapter) const
 	requiredLimits.limits.maxVertexBuffers = 1;
 	// Maximum size of a buffer is 15 vertices of 5 float each
 	requiredLimits.limits.maxBufferSize = 10000 * sizeof(Loader::VertexAttributes);
-	requiredLimits.limits.maxUniformBufferBindingSize = 80;
+	requiredLimits.limits.maxUniformBufferBindingSize = 144;
 
 	requiredLimits.limits.maxVertexBufferArrayStride = sizeof(Loader::VertexAttributes);
 
@@ -386,20 +389,24 @@ void Application::MainLoop()
 	// Translate the view
 	vec3 focalPoint(0.0, 0.0, -1.0);
 	// Rotate the object
-	float angle1 = 2.0f; // arbitrary time
+	//float angle1 = 2.0f; // arbitrary time
 	// Rotate the view point
-	float angle2 = 3.0f * 3.14f / 4.0f;
+	//float angle2 = 3.0f * 3.14f / 4.0f;
 
 	mat4x4 S = glm::scale(mat4x4(1.0), vec3(0.01f));
-	mat4x4 T1 = mat4x4(1.0);
-	mat4x4 R1 = glm::rotate(mat4x4(1.0), angle1, vec3(0.0, 0.0, 1.0));
-	mat4x4 modelMatrix = R1 * T1 * S;
+	mat4x4 T1 = glm::translate(mat4x4(1.0), vec3(0.0, -0.2, 0.0));
+	mat4x4 R1 = glm::rotate(mat4x4(1.0), -glm::half_pi<float>(), vec3(1.0, 0.0, 0.0));
+	mat4x4 R = glm::rotate(mat4x4(1.0), -static_cast<float>(glfwGetTime()), vec3(0, 1.0, 0.0));
+	mat4x4 modelMatrix = T1 * R * R1 * S;
 
-	mat4x4 R2 = glm::rotate(mat4x4(1.0), -angle2, vec3(1.0, 0.0, 0.0));
+	mat4x4 normalMatrix = glm::transpose(glm::inverse(modelMatrix));
+
+
+	//mat4x4 R2 = glm::rotate(mat4x4(1.0), vec3(1.0, 0.0, 0.0));
 	mat4x4 T2 = glm::translate(mat4x4(1.0), -focalPoint);
-	mat4x4 viewMatrix = T2 * R2;
+	mat4x4 viewMatrix = T2;
 
-	float ratio = 640.0f / 480.0f;
+	float ratio = static_cast<float>(config.width) / static_cast<float>(config.height);
 	float focalLength = 2.0;
 	float nearr = 0.01f;
 	float farr = 100.0f;
@@ -410,7 +417,7 @@ void Application::MainLoop()
 		0.0, 0.0, farr * divider, -farr * nearr * divider,
 		0.0, 0.0, 1.0 / focalLength, 0.0));
 
-	FrameUniforms uniforms = {projectionMatrix * viewMatrix * modelMatrix, static_cast<float>(glfwGetTime())};
+	FrameUniforms uniforms = {projectionMatrix * viewMatrix * modelMatrix, normalMatrix, static_cast<float>(glfwGetTime())};
 
 	queue.writeBuffer(frameUniformBuffer, 0, &uniforms, sizeof(FrameUniforms));
 
