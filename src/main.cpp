@@ -84,8 +84,6 @@ public:
 
 	void Repair();
 
-	void TerminateWGPU();
-
 	// Uninitialize everything that was initialized
 	void Terminate();
 
@@ -357,11 +355,6 @@ void Application::Repair()
 	crashed = false;
 }
 
-void Application::TerminateWGPU()
-{
-	surface.unconfigure();
-}
-
 void Application::Terminate()
 {
 	pipeline.release();
@@ -374,9 +367,7 @@ void Application::Terminate()
 	depthTextureView.release();
 	depthTexture.release();
 
-	TerminateWGPU();
 	delete shaderManager;
-	glfwDestroyWindow(window);
 	glfwTerminate();
 }
 
