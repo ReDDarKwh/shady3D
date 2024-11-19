@@ -28,7 +28,7 @@ enum
 
 struct FrameUniforms
 {
-	mat4x4 m;	// at byte offset 64
+	glm::mat3x4 m;	// at byte offset 64
 	mat4x4 mvp; // at byte offset 0
 	float time; // at byte offset 112
 	float _pad0[3];
@@ -396,14 +396,14 @@ void Application::MainLoop()
 
 	mat4x4 S = glm::scale(mat4x4(1.0), vec3(0.01f));
 	mat4x4 T1 = glm::translate(mat4x4(1.0), vec3(0.0, -0.2, 0.0));
+	mat4x4 R0 = glm::rotate(mat4x4(1.0), glm::mod(-static_cast<float>(glfwGetTime()), glm::two_pi<float>()), vec3(0.0, 1.0, 0.0));
 	mat4x4 R1 = glm::rotate(mat4x4(1.0), -glm::half_pi<float>(), vec3(1.0, 0.0, 0.0));
-	mat4x4 R = glm::rotate(mat4x4(1.0), glm::mod(-static_cast<float>(glfwGetTime()), glm::two_pi<float>()), vec3(0, 1.0, 0.0));
-	mat4x4 modelMatrix = T1 * R * S;
-	mat4x4 normalMatrix = modelMatrix;
-	
+	mat4x4 modelMatrix = R0 * S;
+	glm::mat3x4 normalMatrix = glm::mat3x4(glm::inverseTranspose(modelMatrix));
 
+	mat4x4 R = glm::rotate(mat4x4(1.0), -0.25f, vec3(1.0, 0.0, 0.0));
 	mat4x4 T2 = glm::translate(mat4x4(1.0), -focalPoint);
-	mat4x4 viewMatrix = T2;
+	mat4x4 viewMatrix = T2 * R;
 
 	float ratio = static_cast<float>(config.width) / static_cast<float>(config.height);
 	float focalLength = 2.0;
@@ -416,7 +416,7 @@ void Application::MainLoop()
 		0.0, 0.0, farr * divider, -farr * nearr * divider,
 		0.0, 0.0, 1.0 / focalLength, 0.0));
 
-	FrameUniforms uniforms = {normalMatrix, projectionMatrix * viewMatrix * modelMatrix, 0};
+	FrameUniforms uniforms = {normalMatrix, projectionMatrix * viewMatrix * modelMatrix, static_cast<float>(glfwGetTime())};
 
 	queue.writeBuffer(frameUniformBuffer, 0, &uniforms, sizeof(FrameUniforms));
 

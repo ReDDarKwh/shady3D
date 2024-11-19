@@ -12,7 +12,7 @@ struct VertexOutput {
 };
 
 struct FrameUniforms {
-	m: mat4x4f,
+	m: mat3x3f,
     mvp: mat4x4f,
     time: f32,
 };
@@ -27,7 +27,7 @@ fn vs_main(
 
     var out: VertexOutput;
     out.position = frame.mvp * vec4f(in.position, 1.0);
-    out.normal = (frame.m * vec4f(in.normal,0.0)).xyz;
+    out.normal = frame.m * in.normal;
     out.color = in.color;
     return out;
 }
@@ -37,9 +37,9 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4f {
 
     let n = normalize(in.normal);
 
-    let lightColor1 = vec3f(0.5, 0.9, 0.6);
-    let lightDirection1 = vec3f(0.0, -1.0, 0.0);
-    let shading1 = max(0.0, dot(lightDirection1, n));
+    let lightColor1 = vec3f(1, 0.9, 0.6);
+    let lightDirection1 = vec3f(-1.0, 0.0, 0.0);
+    let shading1 = max(0.0, dot(n, -lightDirection1));
     let shading = shading1 * lightColor1;
     let color = shading;
 
