@@ -28,10 +28,10 @@ enum
 
 struct FrameUniforms
 {
-	mat4x4 modelViewProjectionMatrix;
-	mat4x4 modelMatrix;
-	float time;
-	float _pad[3];
+	mat4x4 m;	// at byte offset 64
+	mat4x4 mvp; // at byte offset 0
+	float time; // at byte offset 112
+	float _pad0[3];
 };
 
 // Avoid the "wgpu::" prefix in front of all WebGPU symbols
@@ -78,7 +78,6 @@ private:
 class Application
 {
 public:
-
 	void Resize(int width, int height);
 	// Initialize everything and return true if it went all right
 	bool Initialize();
@@ -199,12 +198,14 @@ void Application::Resize(int newWidth, int newHeight)
 
 	std::vector<uint32_t> res = {(uint32_t)newWidth, (uint32_t)newHeight};
 
-	if(depthTexture){
+	if (depthTexture)
+	{
 		depthTexture.destroy();
 		depthTexture.release();
 	}
 
-	if(depthTextureView){
+	if (depthTextureView)
+	{
 		depthTextureView.release();
 	}
 
@@ -389,20 +390,18 @@ void Application::MainLoop()
 	// Translate the view
 	vec3 focalPoint(0.0, 0.0, -1.0);
 	// Rotate the object
-	//float angle1 = 2.0f; // arbitrary time
+	// float angle1 = 2.0f; // arbitrary time
 	// Rotate the view point
-	//float angle2 = 3.0f * 3.14f / 4.0f;
+	// float angle2 = 3.0f * 3.14f / 4.0f;
 
 	mat4x4 S = glm::scale(mat4x4(1.0), vec3(0.01f));
 	mat4x4 T1 = glm::translate(mat4x4(1.0), vec3(0.0, -0.2, 0.0));
 	mat4x4 R1 = glm::rotate(mat4x4(1.0), -glm::half_pi<float>(), vec3(1.0, 0.0, 0.0));
-	mat4x4 R = glm::rotate(mat4x4(1.0), -static_cast<float>(glfwGetTime()), vec3(0, 1.0, 0.0));
-	mat4x4 modelMatrix = T1 * R * R1 * S;
+	mat4x4 R = glm::rotate(mat4x4(1.0), glm::mod(-static_cast<float>(glfwGetTime()), glm::two_pi<float>()), vec3(0, 1.0, 0.0));
+	mat4x4 modelMatrix = T1 * R * S;
+	mat4x4 normalMatrix = modelMatrix;
+	
 
-	mat4x4 normalMatrix = glm::transpose(glm::inverse(modelMatrix));
-
-
-	//mat4x4 R2 = glm::rotate(mat4x4(1.0), vec3(1.0, 0.0, 0.0));
 	mat4x4 T2 = glm::translate(mat4x4(1.0), -focalPoint);
 	mat4x4 viewMatrix = T2;
 
@@ -417,7 +416,7 @@ void Application::MainLoop()
 		0.0, 0.0, farr * divider, -farr * nearr * divider,
 		0.0, 0.0, 1.0 / focalLength, 0.0));
 
-	FrameUniforms uniforms = {projectionMatrix * viewMatrix * modelMatrix, normalMatrix, static_cast<float>(glfwGetTime())};
+	FrameUniforms uniforms = {normalMatrix, projectionMatrix * viewMatrix * modelMatrix, 0};
 
 	queue.writeBuffer(frameUniformBuffer, 0, &uniforms, sizeof(FrameUniforms));
 
@@ -682,7 +681,7 @@ void Application::InitializePipeline()
 	// Each time a fragment is blended into the target, we update the value of the Z-buffer
 	depthStencilState.depthWriteEnabled = true;
 	// Store the format in a variable as later parts of the code depend on it
-	
+
 	depthStencilState.format = depthTextureFormat;
 	// Deactivate the stencil alltogether
 	depthStencilState.stencilReadMask = 0;
@@ -697,8 +696,6 @@ void Application::InitializePipeline()
 	pipelineDesc.layout = layout;
 
 	pipeline = device.createRenderPipeline(pipelineDesc);
-
-	
 
 	shaderModule.release();
 }

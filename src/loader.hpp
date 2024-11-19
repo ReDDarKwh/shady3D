@@ -1,8 +1,11 @@
+#pragma once
+
 #define TINYOBJLOADER_IMPLEMENTATION
 #include "tiny_obj_loader.h"
 
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
 #define GLM_FORCE_LEFT_HANDED
+#define GLM_FORCE_DEFAULT_ALIGNED_GENTYPES
 #include <glm/glm.hpp>
 #include <glm/ext.hpp>
 
@@ -67,13 +70,13 @@ namespace Loader
 
                 vertexData[offset + i].position = {
                     attrib.vertices[3 * idx.vertex_index + 0],
-                    -attrib.vertices[3 * idx.vertex_index + 2],
-                    attrib.vertices[3 * idx.vertex_index + 1]};
+                    attrib.vertices[3 * idx.vertex_index + 1],
+                    attrib.vertices[3 * idx.vertex_index + 2]};
 
                 vertexData[offset + i].normal = {
                     attrib.normals[3 * idx.normal_index + 0],
-                    -attrib.normals[3 * idx.normal_index + 2],
-                    attrib.normals[3 * idx.normal_index + 1]};
+                    attrib.normals[3 * idx.normal_index + 1],
+                    attrib.normals[3 * idx.normal_index + 2]};
 
                 vertexData[offset + i].color = {
                     attrib.colors[3 * idx.vertex_index + 0],
