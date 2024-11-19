@@ -107,7 +107,8 @@ public:
 	bool crashed;
 
 private:
-	TextureView GetNextSurfaceTextureView();
+	Texture GetNextSurfaceTexture();
+	TextureView GetNextSurfaceTextureView(Texture texture);
 
 private:
 	GLFWwindow *window;
@@ -369,12 +370,8 @@ void Application::Terminate()
 	device.release();
 	sporadicBindGroup.release();
 	frameBindGroup.release();
-
-	vertexBuffer.destroy();
 	vertexBuffer.release();
-
 	depthTextureView.release();
-	depthTexture.destroy();
 	depthTexture.release();
 
 	TerminateWGPU();
@@ -421,7 +418,9 @@ void Application::MainLoop()
 	queue.writeBuffer(frameUniformBuffer, 0, &uniforms, sizeof(FrameUniforms));
 
 	// Get the next target texture view
-	TextureView targetView = GetNextSurfaceTextureView();
+	Texture target = GetNextSurfaceTexture();
+	TextureView targetView = GetNextSurfaceTextureView(target);
+
 	if (!targetView)
 	{
 		crashed = true;
@@ -505,10 +504,12 @@ void Application::MainLoop()
 	command.release();
 
 	// At the enc of the frame
-	targetView.release();
 #ifndef __EMSCRIPTEN__
 	surface.present();
 #endif
+
+	targetView.release();
+	target.release();
 
 #if defined(WEBGPU_BACKEND_DAWN)
 	device.tick();
@@ -522,9 +523,8 @@ bool Application::IsRunning()
 	return !glfwWindowShouldClose(window);
 }
 
-TextureView Application::GetNextSurfaceTextureView()
-{
-	// Get the surface texture
+Texture Application::GetNextSurfaceTexture(){
+
 	SurfaceTexture surfaceTexture;
 	surface.getCurrentTexture(&surfaceTexture);
 	if (surfaceTexture.status != SurfaceGetCurrentTextureStatus::Success)
@@ -532,8 +532,11 @@ TextureView Application::GetNextSurfaceTextureView()
 		return nullptr;
 	}
 
-	Texture texture = surfaceTexture.texture;
+	return surfaceTexture.texture;
+}
 
+TextureView Application::GetNextSurfaceTextureView(Texture texture)
+{
 	// Create a view for this surface texture
 	TextureViewDescriptor viewDescriptor;
 	viewDescriptor.label = "Surface texture view";
