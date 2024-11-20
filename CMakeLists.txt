@@ -5,6 +5,8 @@ project(
 	LANGUAGES CXX C
 )
 
+set(EXECUTABLE_NAME shadyClient)  
+
 include(cmake/CPM.cmake)
 
 find_package(Threads REQUIRED)
@@ -71,7 +73,39 @@ file(GLOB_RECURSE SOURCES
     "${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp"
 )
 
+if(WIN32)
+    # Create Windows batch script
+    file(WRITE ${CMAKE_BINARY_DIR}/kill_previous.bat
+        "@echo off\n"
+        ":: Find and kill previous instance of the executable\n"
+        "taskkill /IM ${EXECUTABLE_NAME}.exe /F >nul 2>&1\n"
+        "exit /b 0\n"
+    )
+    set(KILL_SCRIPT ${CMAKE_BINARY_DIR}/kill_previous.bat)
+else()
+    # Create Unix shell script
+    file(WRITE ${CMAKE_BINARY_DIR}/kill_previous.sh
+        "#!/bin/bash\n"
+        "# Find and kill previous instance of the executable\n"
+        "pkill -f ${EXECUTABLE_NAME} || true\n"
+       
+    )
+    
+    # Make the script executable on Unix
+    execute_process(
+        COMMAND chmod +x ${CMAKE_BINARY_DIR}/kill_previous.sh
+    )
+    set(KILL_SCRIPT ${CMAKE_BINARY_DIR}/kill_previous.sh)
+endif()
+
+add_custom_target(kill_previous
+    COMMAND ${KILL_SCRIPT}
+    COMMENT "Killing previous instance of ${EXECUTABLE_NAME}"
+)
+
 add_executable(shadyClient ${SOURCES})
+
+add_dependencies(shadyClient kill_previous)
 
 find_package(glm CONFIG REQUIRED)
 

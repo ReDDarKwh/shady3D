@@ -8,7 +8,7 @@
     "vcpkg.target.defaultTriplet": "x64-windows-static",
     "vcpkg.target.useStaticLib": true,
     "cmake.configureSettings": {
-        "CMAKE_TOOLCHAIN_FILE": "C:\\Github\\vcpkg/scripts/buildsystems/vcpkg.cmake"
+        "CMAKE_TOOLCHAIN_FILE": "../../vcpkg/scripts/buildsystems/vcpkg.cmake"
     },
     "vcpkg.target.installDependencies": true,
     "vcpkg.target.preferSystemLibs": false,

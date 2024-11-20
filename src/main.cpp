@@ -243,7 +243,7 @@ void Application::Resize(int newWidth, int newHeight)
 bool Application::Initialize()
 {
 
-	shaderManager = new ShaderManager("C:/Github/shady3D/shaders");
+	shaderManager = new ShaderManager("../../shaders");
 
 	auto width = 640 * 2;
 	auto height = width / 2;
@@ -383,10 +383,10 @@ void Application::MainLoop()
 	// float angle2 = 3.0f * 3.14f / 4.0f;
 
 	mat4x4 S = glm::scale(mat4x4(1.0), vec3(0.01f));
-	mat4x4 T1 = glm::translate(mat4x4(1.0), vec3(0.0, -0.2, 0.0));
+	mat4x4 T1 = glm::translate(mat4x4(1.0), vec3(0.0, -0.15, 0.0));
 	mat4x4 R0 = glm::rotate(mat4x4(1.0), glm::mod(-static_cast<float>(glfwGetTime()), glm::two_pi<float>()), vec3(0.0, 1.0, 0.0));
 	mat4x4 R1 = glm::rotate(mat4x4(1.0), -glm::half_pi<float>(), vec3(1.0, 0.0, 0.0));
-	mat4x4 modelMatrix = R0 * S;
+	mat4x4 modelMatrix = T1 * R0 * S;
 	glm::mat3x4 normalMatrix = glm::mat3x4(glm::inverseTranspose(modelMatrix));
 
 	mat4x4 R = glm::rotate(mat4x4(1.0), -0.25f, vec3(1.0, 0.0, 0.0));
