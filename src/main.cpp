@@ -20,6 +20,8 @@
 
 #include "./editorClient.hpp"
 #include "./loader.hpp"
+// #define GLM_ENABLE_EXPERIMENTAL
+// #include <glm/gtx/string_cast.hpp>
 
 enum
 {
@@ -28,9 +30,9 @@ enum
 
 struct FrameUniforms
 {
-	glm::mat3x4 m;	// at byte offset 64
-	mat4x4 mvp; // at byte offset 0
-	float time; // at byte offset 112
+	glm::mat3x4 m; // at byte offset 64
+	mat4x4 mvp;	   // at byte offset 0
+	float time;	   // at byte offset 112
 	float _pad0[3];
 };
 
@@ -89,6 +91,8 @@ public:
 
 	// Draw a frame and handle events
 	void MainLoop();
+	void Tick();
+	void Render();
 
 	// Return true as long as the main loop should keep on running
 	bool IsRunning();
@@ -98,6 +102,10 @@ public:
 	void InitializePipeline();
 
 	void InitializeBindGroupsAndBuffers();
+
+	void OnMouseMove(double xpos, double ypos);
+
+	void UpdateCameraDirection(float xpos, float ypos);
 
 	RequiredLimits GetRequiredLimits(Adapter adapter) const;
 
@@ -130,6 +138,12 @@ private:
 	Texture depthTexture;
 	TextureView depthTextureView;
 	TextureFormat depthTextureFormat = TextureFormat::Depth24Plus;
+	mat4x4 projectionMatrix;
+	mat4x4 viewMatrix = mat4x4(1.0);
+	float oldMouseX = 0;
+	float oldMouseY = 0;
+	float cameraYaw = 0;
+	float cameraPitch = 0;
 };
 
 int main()
@@ -233,6 +247,17 @@ void Application::Resize(int newWidth, int newHeight)
 	depthTextureView = depthTexture.createView(depthTextureViewDesc);
 	std::cout << "Depth texture view: " << depthTextureView << std::endl;
 
+	float ratio = static_cast<float>(newWidth) / static_cast<float>(newHeight);
+	float focalLength = 2.0;
+	float nearr = 0.01f;
+	float farr = 100.0f;
+	float divider = 1 / (focalLength * (farr - nearr));
+	projectionMatrix = transpose(mat4x4(
+		1.0, 0.0, 0.0, 0.0,
+		0.0, ratio, 0.0, 0.0,
+		0.0, 0.0, farr * divider, -farr * nearr * divider,
+		0.0, 0.0, 1.0 / focalLength, 0.0));
+
 	queue.writeBuffer(sporadicUniformBuffer, 0, res.data(), 8);
 
 	surface.configure(config);
@@ -253,9 +278,19 @@ bool Application::Initialize()
 	glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
 	window = glfwCreateWindow(width, height, "Learn WebGPU", nullptr, nullptr);
 
+	glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 	glfwSetWindowUserPointer(window, this);
 	glfwSetFramebufferSizeCallback(window, [](GLFWwindow *window, int width, int height)
 								   { static_cast<Application *>(glfwGetWindowUserPointer(window))->Resize(width, height); });
+
+	glfwSetCursorPosCallback(window, [](GLFWwindow *window, double xpos, double ypos)
+							 { static_cast<Application *>(glfwGetWindowUserPointer(window))->OnMouseMove(xpos, ypos); });
+
+	double xpos, ypos;
+	glfwGetCursorPos(window, &xpos, &ypos);
+
+	oldMouseX = static_cast<float>(xpos);
+	oldMouseY = static_cast<float>(ypos);
 
 	Instance instance = wgpuCreateInstance(nullptr);
 	surface = glfwGetWGPUSurface(instance, window);
@@ -371,38 +406,19 @@ void Application::Terminate()
 	glfwTerminate();
 }
 
-void Application::MainLoop()
+void Application::Tick()
 {
 	glfwPollEvents();
+}
 
-	// Translate the view
-	vec3 focalPoint(0.0, 0.0, -1.0);
-	// Rotate the object
-	// float angle1 = 2.0f; // arbitrary time
-	// Rotate the view point
-	// float angle2 = 3.0f * 3.14f / 4.0f;
-
-	mat4x4 S = glm::scale(mat4x4(1.0), vec3(0.01f));
-	mat4x4 T1 = glm::translate(mat4x4(1.0), vec3(0.0, -0.15, 0.0));
+void Application::Render()
+{
+	mat4x4 S = glm::scale(mat4x4(1.0), vec3(1.0f));
+	mat4x4 T1 = glm::translate(mat4x4(1.0), vec3(0.0, 0.0, 0.0));
 	mat4x4 R0 = glm::rotate(mat4x4(1.0), glm::mod(-static_cast<float>(glfwGetTime()), glm::two_pi<float>()), vec3(0.0, 1.0, 0.0));
 	mat4x4 R1 = glm::rotate(mat4x4(1.0), -glm::half_pi<float>(), vec3(1.0, 0.0, 0.0));
 	mat4x4 modelMatrix = T1 * R0 * S;
 	glm::mat3x4 normalMatrix = glm::mat3x4(glm::inverseTranspose(modelMatrix));
-
-	mat4x4 R = glm::rotate(mat4x4(1.0), -0.25f, vec3(1.0, 0.0, 0.0));
-	mat4x4 T2 = glm::translate(mat4x4(1.0), -focalPoint);
-	mat4x4 viewMatrix = T2 * R;
-
-	float ratio = static_cast<float>(config.width) / static_cast<float>(config.height);
-	float focalLength = 2.0;
-	float nearr = 0.01f;
-	float farr = 100.0f;
-	float divider = 1 / (focalLength * (farr - nearr));
-	mat4x4 projectionMatrix = transpose(mat4x4(
-		1.0, 0.0, 0.0, 0.0,
-		0.0, ratio, 0.0, 0.0,
-		0.0, 0.0, farr * divider, -farr * nearr * divider,
-		0.0, 0.0, 1.0 / focalLength, 0.0));
 
 	FrameUniforms uniforms = {normalMatrix, projectionMatrix * viewMatrix * modelMatrix, static_cast<float>(glfwGetTime())};
 
@@ -509,12 +525,19 @@ void Application::MainLoop()
 #endif
 }
 
+void Application::MainLoop()
+{
+	Tick();
+	Render();
+}
+
 bool Application::IsRunning()
 {
 	return !glfwWindowShouldClose(window);
 }
 
-Texture Application::GetNextSurfaceTexture(){
+Texture Application::GetNextSurfaceTexture()
+{
 
 	SurfaceTexture surfaceTexture;
 	surface.getCurrentTexture(&surfaceTexture);
@@ -641,7 +664,7 @@ void Application::InitializePipeline()
 	pipelineDesc.primitive.topology = PrimitiveTopology::TriangleList;
 	pipelineDesc.primitive.stripIndexFormat = IndexFormat::Undefined;
 	pipelineDesc.primitive.frontFace = FrontFace::CCW;
-	pipelineDesc.primitive.cullMode = CullMode::None;
+	pipelineDesc.primitive.cullMode = CullMode::Back;
 
 	FragmentState fragmentState;
 	pipelineDesc.fragment = &fragmentState;
@@ -697,7 +720,7 @@ void Application::InitializePipeline()
 void Application::InitializeBindGroupsAndBuffers()
 {
 	std::vector<Loader::VertexAttributes> vertexData;
-	Loader::LoadGeometryFromObj("resources/meshes/cat.obj", vertexData);
+	Loader::LoadGeometryFromObj("resources/meshes/circle.obj", vertexData);
 
 	{
 		BufferDescriptor bufferDesc;
@@ -750,4 +773,36 @@ void Application::InitializeBindGroupsAndBuffers()
 	bindGroupDesc.layout = sporadicBindGroupLayout;
 
 	sporadicBindGroup = device.createBindGroup(bindGroupDesc);
+}
+
+void Application::OnMouseMove(double xpos, double ypos)
+{
+	UpdateCameraDirection(static_cast<float>(xpos), static_cast<float>(ypos));
+}
+
+void Application::UpdateCameraDirection(float xpos, float ypos)
+{
+	float s = 0.005f;
+
+	float offsetX = (xpos - oldMouseX) * s;
+	float offsetY = (ypos - oldMouseY) * s;
+
+	oldMouseX = xpos;
+	oldMouseY = ypos;
+
+	cameraYaw += offsetX;
+	cameraPitch -= offsetY;
+
+	cameraPitch = glm::clamp(cameraPitch, -glm::radians<float>(89), glm::radians<float>(89));
+
+	vec3 direction;
+	direction.x = sin(cameraYaw) * cos(cameraPitch);
+	direction.y = sin(cameraPitch);
+	direction.z = cos(cameraYaw) * cos(cameraPitch);
+	vec3 front = glm::normalize(direction);
+	vec3 right = glm::normalize(glm::cross(front, vec3(0.0, 1.0, 0.0))); // normalize the vectors, because their length gets closer to 0 the more you look up or down which results in slower movement.
+	vec3 up = glm::normalize(glm::cross(right, front));
+	viewMatrix = glm::lookAt(glm::vec3(0), front, up);
+
+	std::cout << cameraPitch << std::endl;
 }
