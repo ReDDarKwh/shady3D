@@ -279,6 +279,10 @@ bool Application::Initialize()
 	window = glfwCreateWindow(width, height, "Learn WebGPU", nullptr, nullptr);
 
 	glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+
+	if (glfwRawMouseMotionSupported())
+		glfwSetInputMode(window, GLFW_RAW_MOUSE_MOTION, GLFW_TRUE);
+
 	glfwSetWindowUserPointer(window, this);
 	glfwSetFramebufferSizeCallback(window, [](GLFWwindow *window, int width, int height)
 								   { static_cast<Application *>(glfwGetWindowUserPointer(window))->Resize(width, height); });
