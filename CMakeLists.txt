@@ -109,6 +109,10 @@ add_dependencies(shadyClient kill_previous)
 
 find_package(glm CONFIG REQUIRED)
 
+find_package(nlohmann_json CONFIG REQUIRED)
+
+target_link_libraries(shadyClient PRIVATE nlohmann_json::nlohmann_json)
+
 target_link_libraries(shadyClient PRIVATE glm::glm-header-only glfw webgpu glfw3webgpu asio)
 
 target_copy_webgpu_binaries(shadyClient)

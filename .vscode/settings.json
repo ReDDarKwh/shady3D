@@ -101,7 +101,8 @@
         "xstring": "cpp",
         "xtr1common": "cpp",
         "xtree": "cpp",
-        "xutility": "cpp"
+        "xutility": "cpp",
+        "valarray": "cpp"
     },
     "C_Cpp.errorSquiggles": "disabled"
 }

@@ -1,0 +1,26 @@
+[
+    {
+        "name": "forward",
+        "key": 86
+    },
+    {
+        "name": "backward",
+        "key": 83
+    },
+    {
+        "name": "left",
+        "key": 65
+    },
+    {
+        "name": "right",
+        "key": 68
+    },
+    {
+        "name": "up",
+        "key": 69
+    },
+    {
+        "name": "down",
+        "key": 81
+    }
+]

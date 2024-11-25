@@ -20,6 +20,7 @@
 
 #include "./editorClient.hpp"
 #include "./loader.hpp"
+#include "./input.hpp"
 // #define GLM_ENABLE_EXPERIMENTAL
 // #include <glm/gtx/string_cast.hpp>
 
@@ -117,6 +118,7 @@ private:
 	TextureView GetNextSurfaceTextureView(Texture texture);
 
 private:
+	Input input;
 	GLFWwindow *window;
 	Device device;
 	Queue queue;
@@ -277,6 +279,8 @@ bool Application::Initialize()
 	glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
 	glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
 	window = glfwCreateWindow(width, height, "Learn WebGPU", nullptr, nullptr);
+
+	input = Input(window);
 
 	glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 
