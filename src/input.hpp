@@ -5,25 +5,37 @@
 #include <nlohmann/json.hpp>
 using json = nlohmann::json;
 
-// ...
-
-struct ActionMapping
-{
-    std::string name;
-    int key;
-};
-
-void from_json(const nlohmann::json &j, ActionMapping &mapping)
-{
-    j.at("name").get_to(mapping.name);
-    j.at("key").get_to(mapping.key);
-}
-
 class Input
 {
 
+    friend class Application;
+
 private:
     GLFWwindow *window;
+    std::map<int, std::string> mappings;
+    std::set<std::string> pressedActions;
+    std::set<std::string> downThisFrameActions;
+
+protected:
+    void EndFrame(){
+        downThisFrameActions.clear();
+    }
+
+    void OnKey(int key, int actionType)
+    {
+        if (mappings.find(key) == mappings.end())
+            return;
+
+        if (actionType == GLFW_PRESS)
+        {
+            pressedActions.insert({mappings[key]});
+            downThisFrameActions.insert({mappings[key]});
+        }
+        else if (actionType == GLFW_RELEASE)
+        {
+            pressedActions.erase(mappings[key]);
+        }
+    }
 
 public:
     Input() {}
@@ -33,20 +45,19 @@ public:
 
         window = inWindow;
 
-        glfwSetWindowUserPointer(window, this);
-        glfwSetKeyCallback(window, [](GLFWwindow *, int key, int, int, int)
-                           { std::cout << key << std::endl; });
-
         std::ifstream f("resources/config/input.json");
         auto data = json::parse(f);
-
-        auto mappings = data.get<std::vector<ActionMapping>>();
-
-        std::cout << data << std::endl;
+        for (auto &[key, value] : data.items())
+        {
+            mappings.insert({value.get<int>(), key});
+        }
     }
 
-    // void key_callback(GLFWwindow *window, int key, int scancode, int action, int mods)
-    // {
-    //     std::cout << key << std::endl;
-    // }
+    bool IsDown(std::string action){
+        return downThisFrameActions.find(action) != downThisFrameActions.end();
+    }
+
+    bool IsPressed(std::string action){
+        return pressedActions.find(action) != pressedActions.end();
+    }
 };

@@ -80,6 +80,7 @@ private:
 
 class Application
 {
+
 public:
 	void Resize(int width, int height);
 	// Initialize everything and return true if it went all right
@@ -93,6 +94,7 @@ public:
 	// Draw a frame and handle events
 	void MainLoop();
 	void Tick();
+	void LateTick();
 	void Render();
 
 	// Return true as long as the main loop should keep on running
@@ -112,13 +114,13 @@ public:
 
 	ShaderManager *shaderManager;
 	bool crashed;
+	Input input;
 
 private:
 	Texture GetNextSurfaceTexture();
 	TextureView GetNextSurfaceTextureView(Texture texture);
 
 private:
-	Input input;
 	GLFWwindow *window;
 	Device device;
 	Queue queue;
@@ -279,15 +281,18 @@ bool Application::Initialize()
 	glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
 	glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
 	window = glfwCreateWindow(width, height, "Learn WebGPU", nullptr, nullptr);
+	glfwSetWindowUserPointer(window, this);
 
 	input = Input(window);
+
+	glfwSetKeyCallback(window, [](GLFWwindow *window, int key, int, int action, int)
+					   { static_cast<Application *>(glfwGetWindowUserPointer(window))->input.OnKey(key, action); });
 
 	glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 
 	if (glfwRawMouseMotionSupported())
 		glfwSetInputMode(window, GLFW_RAW_MOUSE_MOTION, GLFW_TRUE);
 
-	glfwSetWindowUserPointer(window, this);
 	glfwSetFramebufferSizeCallback(window, [](GLFWwindow *window, int width, int height)
 								   { static_cast<Application *>(glfwGetWindowUserPointer(window))->Resize(width, height); });
 
@@ -417,6 +422,16 @@ void Application::Terminate()
 void Application::Tick()
 {
 	glfwPollEvents();
+
+	if(input.IsDown("forward")){
+		std::cout << "forward" << std::endl;
+	}
+
+}
+
+void Application::LateTick()
+{
+	input.EndFrame();
 }
 
 void Application::Render()
@@ -537,6 +552,7 @@ void Application::MainLoop()
 {
 	Tick();
 	Render();
+	LateTick();
 }
 
 bool Application::IsRunning()
