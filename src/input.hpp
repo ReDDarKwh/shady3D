@@ -8,7 +8,7 @@ using json = nlohmann::json;
 class Input
 {
 
-    friend class Application;
+    friend class App;
 
 private:
     GLFWwindow *window;
