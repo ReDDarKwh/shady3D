@@ -57,7 +57,7 @@ public:
 
     void UpdateShader(std::string shaderLocation)
     {
-        const auto relativePath = fs::path(shaderLocation).filename().string(); 
+        const auto relativePath = fs::path(shaderLocation).filename().string();
 
         std::ifstream file(shaderLocation);
         file.seekg(0, std::ios::end);
@@ -160,8 +160,6 @@ public:
 
         MainLoop();
     };
-
-    // Initialize everything and return true if it went all right
 
     bool Initialize()
     {
@@ -269,7 +267,12 @@ public:
         return true;
     };
 
+protected:
+    // Initialize everything and return true if it went all right
+
+    virtual void Tick() = 0;
     Input input;
+    mat4x4 viewMatrix = mat4x4(1.0);
 
 private:
     void Repair()
@@ -301,20 +304,17 @@ private:
     // Draw a frame and handle events
     void MainLoop()
     {
-        Tick();
+        InternalTick();
         Render();
         LateTick();
     }
 
-    void Tick()
+    void InternalTick()
     {
         glfwPollEvents();
         io_context.poll();
 
-        if (input.IsDown("forward"))
-        {
-            std::cout << "forward" << std::endl;
-        }
+        Tick();
     }
 
     void LateTick()
@@ -766,7 +766,6 @@ private:
     TextureView depthTextureView;
     TextureFormat depthTextureFormat = TextureFormat::Depth24Plus;
     mat4x4 projectionMatrix;
-    mat4x4 viewMatrix = mat4x4(1.0);
     float oldMouseX = 0;
     float oldMouseY = 0;
     float cameraYaw = 0;

@@ -1,17 +1,16 @@
 
-#include "./app.hpp"
+#include "game.hpp"
 
 int main()
 {
+	Game game;
 
-	App app;
-
-	if (!app.Initialize())
+	if (!game.Initialize())
 	{
 		return 1;
 	}
 
-	app.Start();
+	game.Start();
 
 	return 0;
 }
