@@ -37,6 +37,10 @@ protected:
         }
     }
 
+    void OnMouseMove(float xPos, float yPos){
+
+    }
+
 public:
     Input() {}
 

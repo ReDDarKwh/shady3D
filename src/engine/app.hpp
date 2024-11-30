@@ -198,8 +198,8 @@ public:
         glfwSetFramebufferSizeCallback(window, [](GLFWwindow *window, int width, int height)
                                        { static_cast<App *>(glfwGetWindowUserPointer(window))->Resize(width, height); });
 
-        glfwSetCursorPosCallback(window, [](GLFWwindow *window, double xpos, double ypos)
-                                 { static_cast<App *>(glfwGetWindowUserPointer(window))->OnMouseMove(xpos, ypos); });
+        glfwSetCursorPosCallback(window, [](GLFWwindow *window, double xPos, double yPos)
+                                 { static_cast<App *>(glfwGetWindowUserPointer(window))->Input.OnMouseMove(static_cast<float>(xPos), static_cast<float>(yPos)); });
 
         double xpos, ypos;
         glfwGetCursorPos(window, &xpos, &ypos);
