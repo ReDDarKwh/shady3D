@@ -1,4 +1,4 @@
-#pragma once
+module;
 
 // Include the C++ wrapper instead of the raw header(s)
 #define WEBGPU_CPP_IMPLEMENTATION
@@ -7,22 +7,25 @@
 #include <GLFW/glfw3.h>
 #include <glfw3webgpu.h>
 
+export module app;
+
 #ifdef __EMSCRIPTEN__
 #include <emscripten.h>
 #endif // __EMSCRIPTEN__
 
-#include <vector>
-#include <thread>
-#include <atomic>
-#include <map>
-#include <filesystem>
-#include <fstream>
-#include <sstream>
-#include <string>
+import <vector>;
+import <thread>;
+import <atomic>;
+import <map>;
+import <filesystem>;
+import <fstream>;
+import <sstream>;
+import <string>;
 
-#include "./editorClient.hpp"
-#include "./loader.hpp"
-#include "./input.hpp"
+import input;
+import loader;
+
+namespace fs = std::filesystem;
 // #define GLM_ENABLE_EXPERIMENTAL
 // #include <glm/gtx/string_cast.hpp>
 
@@ -79,11 +82,11 @@ private:
     std::string rootPath;
 };
 
-class App
+export class App
 {
 
 public:
-    App() : client(io_context, "127.0.0.1", "43957") {};
+    App() {};
 
     void Start()
     {
@@ -164,15 +167,16 @@ public:
     bool Initialize()
     {
 
-        client.BindOnMessage([&](auto str)
-                             {
-			shaderManager->UpdateShader(str);
+        // client.BindOnMessage([&](auto str)
+        //                      {
+		// 	shaderManager->UpdateShader(str);
 
-			if(crashed) {
-				Repair();
-			} else {
-				InitializePipeline();
-			} });
+		// 	if(crashed) {
+		// 		Repair();
+		// 	} else {
+		// 		InitializePipeline();
+		// 	} });
+
 
         shaderManager = new ShaderManager("../../shaders");
 
@@ -199,7 +203,7 @@ public:
                                        { static_cast<App *>(glfwGetWindowUserPointer(window))->Resize(width, height); });
 
         glfwSetCursorPosCallback(window, [](GLFWwindow *window, double xPos, double yPos)
-                                 { static_cast<App *>(glfwGetWindowUserPointer(window))->Input.OnMouseMove(static_cast<float>(xPos), static_cast<float>(yPos)); });
+                                 { static_cast<App *>(glfwGetWindowUserPointer(window))->input.OnMouseMove(static_cast<float>(xPos), static_cast<float>(yPos)); });
 
         double xpos, ypos;
         glfwGetCursorPos(window, &xpos, &ypos);
@@ -298,7 +302,6 @@ private:
 
         delete shaderManager;
         glfwTerminate();
-        io_context.stop();
     };
 
     // Draw a frame and handle events
@@ -312,8 +315,6 @@ private:
     void InternalTick()
     {
         glfwPollEvents();
-        io_context.poll();
-
         Tick();
     }
 
@@ -770,8 +771,6 @@ private:
     float oldMouseY = 0;
     float cameraYaw = 0;
     float cameraPitch = 0;
-    asio::io_context io_context;
     ShaderManager *shaderManager;
     bool crashed;
-    Client client;
 };

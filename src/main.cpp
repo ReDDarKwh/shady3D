@@ -1,5 +1,5 @@
 
-#include "game.hpp"
+import mygame;
 
 int main()
 {

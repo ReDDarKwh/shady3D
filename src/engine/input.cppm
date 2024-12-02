@@ -1,11 +1,12 @@
-#pragma once
+export module input;
 
-#include <GLFW/glfw3.h>
-#include <fstream>
-#include <nlohmann/json.hpp>
+import <GLFW/glfw3.h>;
+import <fstream>;
+import <nlohmann/json.hpp>;
+import <set>;
 using json = nlohmann::json;
 
-class Input
+export class Input
 {
 
     friend class App;
@@ -37,7 +38,7 @@ protected:
         }
     }
 
-    void OnMouseMove(float xPos, float yPos){
+    void OnMouseMove(float, float){
 
     }
 

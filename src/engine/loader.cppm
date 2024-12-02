@@ -1,24 +1,26 @@
-#pragma once
+module;
 
 #define TINYOBJLOADER_IMPLEMENTATION
 #include "tiny_obj_loader.hpp"
 
+export module loader;
+
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
 #define GLM_FORCE_LEFT_HANDED
 #define GLM_FORCE_DEFAULT_ALIGNED_GENTYPES
-#include <glm/glm.hpp>
-#include <glm/ext.hpp>
+export import <glm/glm.hpp>;
+export import <glm/ext.hpp>;
 
-#include <iostream>
-#include <filesystem>
+import <iostream>;
+import <filesystem>;
 
 namespace fs = std::filesystem;
-using glm::mat4x4;
-using glm::vec2;
-using glm::vec3;
-using glm::vec4;
+export using glm::mat4x4;
+export using glm::vec2;
+export using glm::vec3;
+export using glm::vec4;
 
-namespace Loader
+export namespace Loader
 {
 
     struct VertexAttributes
