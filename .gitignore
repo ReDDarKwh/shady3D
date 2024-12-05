@@ -16,3 +16,5 @@ CMakeUserPresets.json
 build/bin
 node_modules
 frontend/dist
+
+.vscode/
